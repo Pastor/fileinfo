@@ -42,12 +42,14 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
-				MinimalRebuild="true"
+				MinimalRebuild="false"
+				ExceptionHandling="0"
 				BasicRuntimeChecks="3"
-				RuntimeLibrary="3"
+				RuntimeLibrary="1"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="4"
+				CompileAs="1"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -173,7 +175,19 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\main.cpp"
+				RelativePath=".\common.c"
+				>
+			</File>
+			<File
+				RelativePath=".\file_basic_info.c"
+				>
+			</File>
+			<File
+				RelativePath=".\file_standart_info.c"
+				>
+			</File>
+			<File
+				RelativePath=".\main.c"
 				>
 			</File>
 		</Filter>
@@ -182,6 +196,18 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\common.h"
+				>
+			</File>
+			<File
+				RelativePath=".\file_basic_info.h"
+				>
+			</File>
+			<File
+				RelativePath=".\file_standart_info.h"
+				>
+			</File>
 			<File
 				RelativePath=".\resource.h"
 				>
