@@ -5,6 +5,7 @@
 #include "common.h"
 #include "file_basic_info.h"
 #include "file_standart_info.h"
+#include "file_stream_info.h"
 #include "resource.h"
 
 #pragma comment(lib, "comctl32.lib")
@@ -28,8 +29,8 @@ static struct tagTabCtrl {
 } g_TabInfoCtrl [] = {
 	{ FileBasicInfo,                  TEXT("Основная"),                    TEXT("FILE_BASIC_INFO"),    NULL, fbi_WindowHandler },
 	{ FileStandardInfo,               TEXT("Стандартная"),                 TEXT("FILE_STANDART_INFO"), NULL, fsi_WindowHandler },
+	{ FileStreamInfo,                 TEXT("Потоки"),                      TEXT("FILE_STREAM_INFO"),   NULL, fssi_WindowHandler },
 	{ FileNameInfo,                   TEXT("NameInfo"),                    TEXT(""), NULL, NULL },
-	{ FileStreamInfo,                 TEXT("StreamInfo"),                  TEXT(""), NULL, NULL },
 	{ FileCompressionInfo,            TEXT("CompressionInfo"),             TEXT(""), NULL, NULL },
 	{ FileAttributeTagInfo,           TEXT("AttributeTagInfo"),            TEXT(""), NULL, NULL },
 	{ FileIdBothDirectoryInfo,        TEXT("IdBothDirectoryInfo"),         TEXT(""), NULL, NULL },
@@ -48,6 +49,7 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 int WINAPI
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	InitCommonControls();
+	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 	DialogBoxParam(hInstance, TEXT("MAINDIALOG"), NULL, MainDialog, (LPARAM)hInstance);
 	return EXIT_SUCCESS;
 }
@@ -165,6 +167,19 @@ private_SetFileHandle(HWND hDlg, HWND hTabCtrl, HANDLE hFile) {
 	}
 }
 
+static VOID
+private_EnumerateStream(LPTSTR lpstrFileName) {
+	/**WIN32_FIND_STREAM_DATA fsd;
+	HANDLE hStream;
+
+	hStream = FindFirstStreamW(lpstrFileName, FindStreamInfoStandard, &fsd, 0);
+	if ( hStream == INVALID_HANDLE_VALUE )
+		return;
+	do {
+	} while (FindNextStreamW(hStream, &fsd));
+	FindClose(hStream);*/
+}
+
 INT_PTR CALLBACK
 MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 static HINSTANCE hInstance = NULL;
@@ -202,6 +217,15 @@ static HWND hTabCtrl = NULL;
 			}
 			break;
 		}
+		case WM_DROPFILES: {
+			HDROP hDrop = (HDROP)wParam;
+      TCHAR szFileName[MAX_PATH * sizeof(TCHAR)];
+
+			DragQueryFile(hDrop, 0, szFileName, sizeof(szFileName));
+			MessageBox(hDlg, szFileName, NULL, MB_OK);
+			DragFinish(hDrop);
+			break;
+		}
 		case WM_COMMAND: {
 			LPTSTR lpstrFileName;
 			DWORD  dwFileNameLength;
@@ -210,6 +234,15 @@ static HWND hTabCtrl = NULL;
 			WORD wCtrlId = LOWORD(wParam);
 			
 			switch ( wCtrlId ) {
+		    case IDM_CREATE_STREAM:
+		    case IDM_VIEW_STREAM: {
+					/** Send message to children */
+					int iCurTab = TabCtrl_GetCurSel(hTabCtrl);
+					if ( iCurTab >= 0 && g_TabInfoCtrl[iCurTab].hWnd ) {
+						SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_COMMAND, wParam, lParam);
+					}
+					break;
+				}
 		    case IDC_OPENFILE: {
 				BROWSEINFO bi;
 				LPITEMIDLIST lpIdList;
@@ -222,17 +255,23 @@ static HWND hTabCtrl = NULL;
 				dwFileNameLength = MAX_PATH * 1024 * sizeof(TCHAR);
 				lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
 				//GetModuleFileName(hInstance, lpstrFileName, dwFileNameLength);
+				//GetCurrentDirectory(dwFileNameLength, lpstrFileName);
 				//SHGetDesktopFolder(&pDesktopFolder);
 				//pDesktopFolder->lpVtbl->ParseDisplayName(pDesktopFolder, hDlg, NULL, lpstrFileName, &chEaten, &bi.pidlRoot, &dwAttributes);
 				
 				bi.hwndOwner = hDlg;
 				bi.lpszTitle = TEXT("Выбор директории или файла");
-				bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_NEWDIALOGSTYLE | BIF_STATUSTEXT | BIF_USENEWUI;
+				bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_RETURNFSANCESTORS;
 				lpIdList = SHBrowseForFolder(&bi);
 				if ( lpIdList != NULL && SUCCEEDED(lpIdList) ) {
 					SECURITY_ATTRIBUTES sa;
+					IMalloc *comMalloc;
 
 					SHGetPathFromIDList(lpIdList, lpstrFileName);
+					if ( SUCCEEDED( SHGetMalloc(&comMalloc) ) ) {
+					  comMalloc->lpVtbl->Free(comMalloc, lpIdList);
+					  comMalloc->lpVtbl->Release(comMalloc);
+					}
 					RtlZeroMemory(&sa, sizeof(sa));
 					if ( !common_CreateSecurityAttributes(&sa) ) {
 						common_ShowError(hDlg, TEXT("Create secutiry attributes"));
@@ -285,10 +324,11 @@ static HWND hTabCtrl = NULL;
 						SetWindowText(hEditFile, TEXT(""));
 						private_SetFileHandle(hDlg, hTabCtrl, NULL);
 					} else {
+						private_EnumerateStream(lpstrFileName);
 						SetWindowText(hEditFile, lpstrFileName);
-					    if ( hTooltip != NULL )
+					  if ( hTooltip != NULL )
 						  DestroyWindow(hTooltip);
-					    hTooltip = CreateToolTipForRect(hEditFile, hInstance, lpstrFileName);
+					  hTooltip = CreateToolTipForRect(hEditFile, hInstance, lpstrFileName);
 						private_SetFileHandle(hDlg, hTabCtrl, hFile);
 					}
 					common_FreeSecurityAttributes(&sa);

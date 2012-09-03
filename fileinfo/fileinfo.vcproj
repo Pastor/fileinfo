@@ -118,11 +118,12 @@
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
-				RuntimeLibrary="2"
+				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				DebugInformationFormat="3"
+				DebugInformationFormat="0"
+				CompileAs="1"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -136,7 +137,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				LinkIncremental="1"
-				GenerateDebugInformation="true"
+				GenerateDebugInformation="false"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
@@ -187,6 +188,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\file_stream_info.c"
+				>
+			</File>
+			<File
 				RelativePath=".\main.c"
 				>
 			</File>
@@ -206,6 +211,10 @@
 			</File>
 			<File
 				RelativePath=".\file_standart_info.h"
+				>
+			</File>
+			<File
+				RelativePath=".\file_stream_info.h"
 				>
 			</File>
 			<File

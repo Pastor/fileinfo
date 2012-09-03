@@ -105,7 +105,8 @@ private_GetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGE
 
 static VOID CALLBACK
 private_SetFileBasicInformation(HWND hDlg, PFILE_BASIC_INFO pfbi, HANDLE hFile) {
-     if ( hFile != NULL && hFile != INVALID_HANDLE_VALUE ) {
+	fbi_EnableControls(hDlg, FALSE);
+  if ( hFile != NULL && hFile != INVALID_HANDLE_VALUE ) {
 		BOOL bResult = GetFileInformationByHandleEx( hFile, FileBasicInfo, pfbi, sizeof(FILE_BASIC_INFO));
 		if ( bResult ) {
 			fbi_SetFileAttributes(hDlg, pfbi->FileAttributes);
@@ -116,8 +117,6 @@ private_SetFileBasicInformation(HWND hDlg, PFILE_BASIC_INFO pfbi, HANDLE hFile) 
 		private_SetTimeDate(hDlg, IDC_BFI_CHANGE_TIME_DATE, IDC_BFI_CHANGE_TIME_TIME, &pfbi->ChangeTime);
 		private_SetTimeDate(hDlg, IDC_BFI_LAST_ACCESS_TIME_DATE, IDC_BFI_LAST_ACCESS_TIME_TIME, &pfbi->LastAccessTime);
 		private_SetTimeDate(hDlg, IDC_BFI_LAST_WRITE_TIME_DATE, IDC_BFI_LAST_WRITE_TIME_TIME, &pfbi->LastWriteTime);
-	} else {
-		fbi_EnableControls(hDlg, FALSE);
 	}
 }
 
@@ -127,7 +126,7 @@ private_UpdateButtonState(HWND hDlg, PFILE_BASIC_INFO pfbi) {
 	BOOL bEnable = pfbi->FileAttributes != fbi_GetFileAttributes(hDlg);
 	if ( !bEnable ) {
 		/** If change date time */
-        private_GetTimeDate(hDlg, IDC_BFI_CREATION_TIME_DATE, IDC_BFI_CREATION_TIME_TIME, &lint);
+    private_GetTimeDate(hDlg, IDC_BFI_CREATION_TIME_DATE, IDC_BFI_CREATION_TIME_TIME, &lint);
 		bEnable = (bEnable == TRUE || lint.QuadPart != pfbi->CreationTime.QuadPart);
 		private_GetTimeDate(hDlg, IDC_BFI_CHANGE_TIME_DATE, IDC_BFI_CHANGE_TIME_TIME, &lint);
 		bEnable = (bEnable == TRUE || lint.QuadPart != pfbi->ChangeTime.QuadPart);
@@ -136,8 +135,8 @@ private_UpdateButtonState(HWND hDlg, PFILE_BASIC_INFO pfbi) {
 		private_GetTimeDate(hDlg, IDC_BFI_LAST_WRITE_TIME_DATE, IDC_BFI_LAST_WRITE_TIME_TIME, &lint);
 		bEnable = (bEnable == TRUE || lint.QuadPart != pfbi->LastWriteTime.QuadPart);
 	}
-    EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_RESTORE), bEnable);
-	EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_SAVE), bEnable);
+  EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_RESTORE), bEnable && IsDlgButtonChecked(hDlg, IDC_LOCKER) == BST_CHECKED);
+	EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_SAVE), bEnable && IsDlgButtonChecked(hDlg, IDC_LOCKER) == BST_CHECKED);
 }
 
 INT_PTR CALLBACK 
