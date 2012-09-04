@@ -108,7 +108,7 @@ CreateToolTip(int iCtrlId, HWND hDlg, HINSTANCE hInstance, PTSTR pszText) {
   TOOLINFO toolInfo = { 0 };
 
   if (!iCtrlId || !hDlg || !pszText) {
-      return FALSE;
+    return FALSE;
   }
   hwndTool = GetDlgItem(hDlg, iCtrlId);
   hwndTip = CreateWindowEx(0, TOOLTIPS_CLASS, NULL,
@@ -118,9 +118,9 @@ CreateToolTip(int iCtrlId, HWND hDlg, HINSTANCE hInstance, PTSTR pszText) {
                             hDlg, NULL, 
                             hInstance, NULL);
   
- if (!hwndTool || !hwndTip) {
-     return (HWND)NULL;
- }                              
+  if (!hwndTool || !hwndTip) {
+    return (HWND)NULL;
+  }                              
                             
   
   toolInfo.cbSize = sizeof(toolInfo);
@@ -168,7 +168,7 @@ private_SetFileHandle(HWND hDlg, HWND hTabCtrl, HANDLE hFile) {
 }
 
 static VOID
-private_EnumerateStream(LPTSTR lpstrFileName) {
+private_EnumerateStream(LPCTSTR lpstrFileName) {
 	/**WIN32_FIND_STREAM_DATA fsd;
 	HANDLE hStream;
 
@@ -178,6 +178,72 @@ private_EnumerateStream(LPTSTR lpstrFileName) {
 	do {
 	} while (FindNextStreamW(hStream, &fsd));
 	FindClose(hStream);*/
+}
+
+static HANDLE
+private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileName, DWORD dwFileNameLength, HINSTANCE hInstance, HWND *hTooltip) {
+  SECURITY_ATTRIBUTES sa;
+  HANDLE hFile;
+
+  RtlZeroMemory(&sa, sizeof(sa));
+  if ( !common_CreateSecurityAttributes(&sa) ) {
+		common_ShowError(hDlg, TEXT("Create secutiry attributes"));
+		SetWindowText(hEditFile, TEXT(""));
+		return INVALID_HANDLE_VALUE;
+	}	
+	{
+		DWORD dwFileAttributes;
+		/** Check if file read only */
+                
+		dwFileAttributes = GetFileAttributes(lpcstrFileName);
+		if ( dwFileAttributes & FILE_ATTRIBUTE_READONLY ) {
+		  LPTSTR lpMessage;
+		  DWORD dwMessageLength = dwFileNameLength;
+		  int iRet;
+
+		  dwMessageLength += 1024 * sizeof(TCHAR);
+		  lpMessage = (LPTSTR)LocalAlloc(LPTR, dwMessageLength);
+		  StringCchPrintf( lpMessage, 
+			  dwMessageLength, 
+			  TEXT("Файл \"%s\" защищен от записи.\r\nСнять защиту и открыть?"), 
+			  lpcstrFileName );
+	      iRet = MessageBox(hDlg, lpMessage, TEXT("Предупреждение"), MB_YESNO | MB_ICONQUESTION);
+		  if ( iRet != IDYES ) {
+			  LocalFree(lpMessage);
+			  common_FreeSecurityAttributes(&sa);
+			  return FALSE;
+		  }
+		  dwFileAttributes &= ~FILE_ATTRIBUTE_READONLY;
+		  if ( !SetFileAttributes( lpcstrFileName, dwFileAttributes ) ) {
+			  common_ShowError(hDlg, TEXT("SetFileAttributes"));
+			  LocalFree(lpMessage);
+			  common_FreeSecurityAttributes(&sa);
+			  return INVALID_HANDLE_VALUE;
+		  }
+		  LocalFree(lpMessage);
+		}
+	}
+	hFile = CreateFile(lpcstrFileName, 
+		GENERIC_READ | GENERIC_WRITE, 
+		FILE_SHARE_READ/* | FILE_SHARE_WRITE*/, 
+		&sa, 
+		OPEN_EXISTING, 
+		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, 
+		NULL);
+	if ( hFile == INVALID_HANDLE_VALUE ) {
+		common_ShowError(hDlg, TEXT("CreateFile"));
+		SetWindowText(hEditFile, TEXT(""));
+		private_SetFileHandle(hDlg, hTabCtrl, NULL);
+	} else {
+		private_EnumerateStream(lpcstrFileName);
+		SetWindowText(hEditFile, lpcstrFileName);
+	  if ( (*hTooltip) != NULL )
+		  DestroyWindow( (*hTooltip) );
+	  (*hTooltip) = CreateToolTipForRect(hEditFile, hInstance, (LPTSTR)lpcstrFileName);
+		private_SetFileHandle(hDlg, hTabCtrl, hFile);
+	}
+	common_FreeSecurityAttributes(&sa);
+  return hFile;
 }
 
 INT_PTR CALLBACK
@@ -222,14 +288,15 @@ static HWND hTabCtrl = NULL;
       TCHAR szFileName[MAX_PATH * sizeof(TCHAR)];
 
 			DragQueryFile(hDrop, 0, szFileName, sizeof(szFileName));
-			MessageBox(hDlg, szFileName, NULL, MB_OK);
+      if ( hFile && hFile != INVALID_HANDLE_VALUE )
+        CloseHandle(hFile);
+			hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, szFileName, sizeof(szFileName), hInstance, &hTooltip);
 			DragFinish(hDrop);
 			break;
 		}
 		case WM_COMMAND: {
 			LPTSTR lpstrFileName;
 			DWORD  dwFileNameLength;
-			BOOL bOpenDirectory = FALSE;
 			WORD wNotifyId = HIWORD(wParam);
 			WORD wCtrlId = LOWORD(wParam);
 			
@@ -244,100 +311,34 @@ static HWND hTabCtrl = NULL;
 					break;
 				}
 		    case IDC_OPENFILE: {
-				BROWSEINFO bi;
-				LPITEMIDLIST lpIdList;
-				//LPSHELLFOLDER pDesktopFolder;
-				//ULONG chEaten;
-				//DWORD dwAttributes;
-				
+				  BROWSEINFO bi;
+				  LPITEMIDLIST lpIdList;				
 
-				RtlZeroMemory(&bi, sizeof(bi));
-				dwFileNameLength = MAX_PATH * 1024 * sizeof(TCHAR);
-				lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
-				//GetModuleFileName(hInstance, lpstrFileName, dwFileNameLength);
-				//GetCurrentDirectory(dwFileNameLength, lpstrFileName);
-				//SHGetDesktopFolder(&pDesktopFolder);
-				//pDesktopFolder->lpVtbl->ParseDisplayName(pDesktopFolder, hDlg, NULL, lpstrFileName, &chEaten, &bi.pidlRoot, &dwAttributes);
-				
-				bi.hwndOwner = hDlg;
-				bi.lpszTitle = TEXT("Выбор директории или файла");
-				bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_RETURNFSANCESTORS;
-				lpIdList = SHBrowseForFolder(&bi);
-				if ( lpIdList != NULL && SUCCEEDED(lpIdList) ) {
-					SECURITY_ATTRIBUTES sa;
-					IMalloc *comMalloc;
+          if ( hFile && hFile != INVALID_HANDLE_VALUE )
+            CloseHandle(hFile);
+				  RtlZeroMemory(&bi, sizeof(bi));
+				  dwFileNameLength = MAX_PATH * 1024 * sizeof(TCHAR);
+				  lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
+  				
+				  bi.hwndOwner = hDlg;
+				  bi.lpszTitle = TEXT("Выбор директории или файла");
+				  bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_RETURNFSANCESTORS;
+				  lpIdList = SHBrowseForFolder(&bi);
+				  if ( lpIdList != NULL && SUCCEEDED(lpIdList) ) {
+					  IMalloc *comMalloc;
 
-					SHGetPathFromIDList(lpIdList, lpstrFileName);
-					if ( SUCCEEDED( SHGetMalloc(&comMalloc) ) ) {
-					  comMalloc->lpVtbl->Free(comMalloc, lpIdList);
-					  comMalloc->lpVtbl->Release(comMalloc);
-					}
-					RtlZeroMemory(&sa, sizeof(sa));
-					if ( !common_CreateSecurityAttributes(&sa) ) {
-						common_ShowError(hDlg, TEXT("Create secutiry attributes"));
-						SetWindowText(hEditFile, TEXT(""));
-						break;
-					}	
-					{
-						DWORD dwFileAttributes;
-						/** Check if file read only */
-                        
-						dwFileAttributes = GetFileAttributes(lpstrFileName);
-						if ( dwFileAttributes & FILE_ATTRIBUTE_READONLY ) {
-						  LPTSTR lpMessage;
-						  DWORD dwMessageLength = dwFileNameLength;
-						  int iRet;
-
-						  dwMessageLength += 1024 * sizeof(TCHAR);
-						  lpMessage = (LPTSTR)LocalAlloc(LPTR, dwMessageLength);
-						  StringCchPrintf( lpMessage, 
-							  dwMessageLength, 
-							  TEXT("Файл \"%s\" защищен от записи.\r\nСнять защиту и открыть?"), 
-							  lpstrFileName );
-					      iRet = MessageBox(hDlg, lpMessage, TEXT("Предупреждение"), MB_YESNO | MB_ICONQUESTION);
-						  if ( iRet != IDYES ) {
-							  LocalFree(lpstrFileName);
-							  LocalFree(lpMessage);
-							  common_FreeSecurityAttributes(&sa);
-							  return FALSE;
-						  }
-						  dwFileAttributes &= ~FILE_ATTRIBUTE_READONLY;
-						  if ( !SetFileAttributes( lpstrFileName, dwFileAttributes ) ) {
-							  common_ShowError(hDlg, TEXT("SetFileAttributes"));
-							  LocalFree(lpstrFileName);
-							  LocalFree(lpMessage);
-							  common_FreeSecurityAttributes(&sa);
-							  return FALSE;
-						  }
-						  LocalFree(lpMessage);
-						}
-					}
-					hFile = CreateFile(lpstrFileName, 
-						GENERIC_READ | GENERIC_WRITE, 
-						FILE_SHARE_READ/* | FILE_SHARE_WRITE*/, 
-						&sa, 
-						OPEN_EXISTING, 
-						FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, 
-						NULL);
-					if ( hFile == INVALID_HANDLE_VALUE ) {
-						common_ShowError(hDlg, TEXT("CreateFile"));
-						SetWindowText(hEditFile, TEXT(""));
-						private_SetFileHandle(hDlg, hTabCtrl, NULL);
-					} else {
-						private_EnumerateStream(lpstrFileName);
-						SetWindowText(hEditFile, lpstrFileName);
-					  if ( hTooltip != NULL )
-						  DestroyWindow(hTooltip);
-					  hTooltip = CreateToolTipForRect(hEditFile, hInstance, lpstrFileName);
-						private_SetFileHandle(hDlg, hTabCtrl, hFile);
-					}
-					common_FreeSecurityAttributes(&sa);
-				}
-				LocalFree(lpstrFileName);
-				break;
+					  SHGetPathFromIDList(lpIdList, lpstrFileName);
+					  if ( SUCCEEDED( SHGetMalloc(&comMalloc) ) ) {
+					    comMalloc->lpVtbl->Free(comMalloc, lpIdList);
+					    comMalloc->lpVtbl->Release(comMalloc);
+					  }
+					  hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, lpstrFileName, dwFileNameLength, hInstance, &hTooltip);					
+				  }
+				  LocalFree(lpstrFileName);
+				  break;
 			  }
 			}
-		    break;
+		  break;
 		}
 		case WM_CLOSE: {
 			if (hFile != NULL && hFile != INVALID_HANDLE_VALUE) {
