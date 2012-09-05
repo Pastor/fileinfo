@@ -71,12 +71,14 @@ static VOID CALLBACK
 private_SetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGER lpTimeDate) {
 	SYSTEMTIME stime;
 	FILETIME   ftime;
+  FILETIME ltime;
 	HWND hDateWnd = GetDlgItem(hDlg, uDateCtrlId);
 	HWND hTimeWnd = GetDlgItem(hDlg, uTimeCtrlId);
 
 	ftime.dwHighDateTime = lpTimeDate->HighPart;
 	ftime.dwLowDateTime = lpTimeDate->LowPart;
-	FileTimeToSystemTime(&ftime, &stime);
+  FileTimeToLocalFileTime(&ftime, &ltime);
+	FileTimeToSystemTime(&ltime, &stime);
 	DateTime_SetSystemtime(hDateWnd, GDT_VALID, &stime);
 	DateTime_SetSystemtime(hTimeWnd, GDT_VALID, &stime);
 }
@@ -85,6 +87,7 @@ static VOID CALLBACK
 private_GetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGER lpTimeDate) {
   SYSTEMTIME stime;
   SYSTEMTIME sdate;
+  FILETIME ltime;
   FILETIME ftime;
   HWND hTime = GetDlgItem(hDlg, uTimeCtrlId);
   HWND hDate = GetDlgItem(hDlg, uDateCtrlId);
@@ -98,7 +101,8 @@ private_GetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGE
   stime.wDayOfWeek = sdate.wDayOfWeek;
   stime.wMonth = sdate.wMonth;
   stime.wYear = sdate.wYear;
-  SystemTimeToFileTime(&stime, &ftime);
+  SystemTimeToFileTime(&stime, &ltime);
+  LocalFileTimeToFileTime(&ltime, &ftime);
   lpTimeDate->HighPart = ftime.dwHighDateTime;
   lpTimeDate->LowPart = ftime.dwLowDateTime;
 }
