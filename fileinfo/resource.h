@@ -32,8 +32,9 @@
 #define IDC_FILEINFO_SAVE               1032
 #define IDC_FILEINFO_RESTORE            1033
 #define IDC_INFOTAB                     1034
-#define IDC_BUTTON1                     1038
 #define IDC_CREATE_STREAM               1038
+#define IDC_BUTTON1                     1039
+#define IDC_RESTART_AS_ADMINISTARTOR    1039
 #define IDC_ALLOCATED_SIZE              1074
 #define IDC_ENDOF_FILE                  1075
 #define IDC_NUMBER_OF_LINKS             1076
@@ -49,7 +50,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        105
 #define _APS_NEXT_COMMAND_VALUE         40005
-#define _APS_NEXT_CONTROL_VALUE         1039
+#define _APS_NEXT_CONTROL_VALUE         1040
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -155,9 +155,6 @@ static HANDLE hFile = nullptr;
   switch ( uMsg ) {
   	case WM_INITDIALOG: {
 		fbi_EnableControls(hDlg, FALSE);
-#if (NTDDI_VERSION >= NTDDI_VISTA)
-        Button_SetElevationRequiredState(GetDlgItem(hDlg, IDC_FILEINFO_SAVE), TRUE);
-#endif
 		RtlZeroMemory(&fbi, sizeof(fbi));
 		return TRUE;
     }

@@ -54,6 +54,8 @@ INT_PTR CALLBACK
 MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 BOOL
 SetDebugStatusForCurentProc(VOID);
+BOOL
+IsElevated(VOID);
 
 int WINAPI
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -264,16 +266,22 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     static HWND      hTooltip = nullptr;
     static HWND      hEditFile = nullptr;
     static HWND      hTabCtrl = nullptr;
+    static HWND      hRestartAsAdministrator = nullptr;
 	switch ( uMsg ) {
 		case WM_INITDIALOG: {
 		  hInstance = (HINSTANCE)lParam;
 		  SetWindowText(hDlg, TEXT("Информация о файле"));
 		  hEditFile = GetDlgItem(hDlg, IDC_EDITFILE);
 		  hTabCtrl = GetDlgItem(hDlg, IDC_INFOTAB);
+          hRestartAsAdministrator = GetDlgItem(hDlg, IDC_RESTART_AS_ADMINISTARTOR);
 		  private_InitButtonImageList(hDlg, hInstance);
 		  private_InitTabInfoCtrl(hTabCtrl, hInstance);
 		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENFILE), hInstance, TEXT("Открыть файл"));
 		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENDIRECTORY), hInstance, TEXT("Открыть директорию"));
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+          Button_SetElevationRequiredState(hRestartAsAdministrator, TRUE);
+          EnableWindow(hRestartAsAdministrator, !IsElevated());
+#endif
 		  return TRUE;
 		}
 		case WM_NOTIFY: {
@@ -350,6 +358,20 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				    LocalFree(lpstrFileName);
 				    break;
 			    }
+                case IDC_RESTART_AS_ADMINISTARTOR: {
+                    TCHAR szPathBuffer[MAX_PATH * 4];
+                    DWORD dwSize = sizeof(szPathBuffer) * sizeof(TCHAR);
+                    DWORD dwRet;
+
+                    dwRet = GetModuleFileName((HMODULE)hInstance, szPathBuffer, dwSize);
+                    if (dwRet > 0 && dwRet < dwSize) {
+                        szPathBuffer[dwRet * sizeof(TCHAR)] = (TCHAR)0x00;
+
+                        ShellExecute(nullptr, TEXT("runas"), szPathBuffer, nullptr, nullptr, SW_SHOWNORMAL);
+                        SendMessage(hDlg, WM_CLOSE, (WPARAM)nullptr, (LPARAM)nullptr);
+                    }
+                    break;
+                }
 			}
 		    break;
 		}
@@ -387,4 +409,20 @@ SetDebugStatusForCurentProc(VOID)
     return bRet;
 }
 
-
+BOOL 
+IsElevated(VOID) 
+{
+    BOOL fRet = FALSE;
+    HANDLE hToken = nullptr;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        TOKEN_ELEVATION Elevation;
+        DWORD cbSize = sizeof(TOKEN_ELEVATION);
+        if (GetTokenInformation(hToken, TokenElevation, &Elevation, sizeof(Elevation), &cbSize)) {
+            fRet = Elevation.TokenIsElevated;
+        }
+    }
+    if (hToken) {
+        CloseHandle(hToken);
+    }
+    return fRet;
+}
