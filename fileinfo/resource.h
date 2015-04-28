@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
-// Microsoft Visual C++ generated include file.
-// Used by fileinfo.rc
+// Включаемый файл, созданный в Microsoft Visual C++.
+// Используется fileinfo.rc
 //
 #define IDI_FILEOPEN                    102
 #define IDC_OPENFILE                    1001
@@ -26,22 +26,22 @@
 #define IDC_ATTRIBUTE_COMPRESSED        1026
 #define IDC_ATTRIBUTE_DIRECTORY         1027
 #define IDC_ATTRIBUTE_CRYPTED           1028
-#define IDC_CHECK12                     1029
-#define IDC_LOCKER                      1030
-#define IDC_FILEINFO_SAVE               1031
-#define IDC_FILEINFO_RESTORE            1032
-#define IDC_INFOTAB                     1033
-#define IDC_ALLOCATED_SIZE              1034
-#define IDC_ENDOF_FILE                  1035
-#define IDC_NUMBER_OF_LINKS             1036
-#define IDC_DELETED_PENDING             1037
-#define IDC_IS_DIRECTORY                1038
-#define IDC_STREAM_LIST                 1039
-
-
-
-#define IDM_CREATE_STREAM               1051
-#define IDM_VIEW_STREAM                 1052
+#define IDC_ATTRIBUTE_SPARSE            1029
+#define IDC_CHECK12                     1030
+#define IDC_LOCKER                      1031
+#define IDC_FILEINFO_SAVE               1032
+#define IDC_FILEINFO_RESTORE            1033
+#define IDC_INFOTAB                     1034
+#define IDC_BUTTON1                     1038
+#define IDC_CREATE_STREAM               1038
+#define IDC_ALLOCATED_SIZE              1074
+#define IDC_ENDOF_FILE                  1075
+#define IDC_NUMBER_OF_LINKS             1076
+#define IDC_DELETED_PENDING             1077
+#define IDC_IS_DIRECTORY                1078
+#define IDC_STREAM_LIST                 1079
+#define IDM_CREATE_STREAM               1081
+#define IDM_VIEW_STREAM                 1082
 
 // Next default values for new objects
 // 
@@ -49,7 +49,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        105
 #define _APS_NEXT_COMMAND_VALUE         40005
-#define _APS_NEXT_CONTROL_VALUE         1038
+#define _APS_NEXT_CONTROL_VALUE         1039
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

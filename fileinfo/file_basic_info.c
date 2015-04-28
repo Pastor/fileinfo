@@ -7,7 +7,7 @@ VOID CALLBACK
 fbi_EnableControls(HWND hDlg, BOOL bStatus) {
 	UINT uCtrlId;
 
-	for (uCtrlId = 1010; uCtrlId <= 1032; ++uCtrlId) {
+	for (uCtrlId = 1010; uCtrlId <= 1034; ++uCtrlId) {
 		EnableWindow( GetDlgItem(hDlg, uCtrlId), bStatus );
 	}
 }
@@ -49,6 +49,10 @@ fbi_GetFileAttributes(HWND hDlg) {
   if ( IsDlgButtonChecked(hDlg, IDC_ATTRIBUTE_CRYPTED) == BST_CHECKED ) {
 	  dwResult |= FILE_ATTRIBUTE_ENCRYPTED;
   }
+  if (IsDlgButtonChecked(hDlg, IDC_ATTRIBUTE_SPARSE) == BST_CHECKED) {
+      dwResult |= FILE_ATTRIBUTE_SPARSE_FILE;
+  }
+  //FILE_ATTRIBUTE_SPARSE_FILE
   return dwResult;
 }
 
@@ -65,19 +69,20 @@ fbi_SetFileAttributes(HWND hDlg, DWORD dwFileAttributes) {
   CheckDlgButton(hDlg, IDC_ATTRIBUTE_COMPRESSED, dwFileAttributes & FILE_ATTRIBUTE_COMPRESSED ? BST_CHECKED : BST_UNCHECKED);
   CheckDlgButton(hDlg, IDC_ATTRIBUTE_DIRECTORY, dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ? BST_CHECKED : BST_UNCHECKED);
   CheckDlgButton(hDlg, IDC_ATTRIBUTE_CRYPTED, dwFileAttributes & FILE_ATTRIBUTE_ENCRYPTED ? BST_CHECKED : BST_UNCHECKED);
+  CheckDlgButton(hDlg, IDC_ATTRIBUTE_SPARSE, dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE ? BST_CHECKED : BST_UNCHECKED);
 }
 
 static VOID CALLBACK
 private_SetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGER lpTimeDate) {
 	SYSTEMTIME stime;
 	FILETIME   ftime;
-  FILETIME ltime;
+    FILETIME ltime;
 	HWND hDateWnd = GetDlgItem(hDlg, uDateCtrlId);
 	HWND hTimeWnd = GetDlgItem(hDlg, uTimeCtrlId);
 
 	ftime.dwHighDateTime = lpTimeDate->HighPart;
 	ftime.dwLowDateTime = lpTimeDate->LowPart;
-  FileTimeToLocalFileTime(&ftime, &ltime);
+    FileTimeToLocalFileTime(&ftime, &ltime);
 	FileTimeToSystemTime(&ltime, &stime);
 	DateTime_SetSystemtime(hDateWnd, GDT_VALID, &stime);
 	DateTime_SetSystemtime(hTimeWnd, GDT_VALID, &stime);
@@ -110,7 +115,7 @@ private_GetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGE
 static VOID CALLBACK
 private_SetFileBasicInformation(HWND hDlg, PFILE_BASIC_INFO pfbi, HANDLE hFile) {
 	fbi_EnableControls(hDlg, FALSE);
-  if ( hFile != NULL && hFile != INVALID_HANDLE_VALUE ) {
+    if (hFile != nullptr && hFile != INVALID_HANDLE_VALUE) {
 		BOOL bResult = GetFileInformationByHandleEx( hFile, FileBasicInfo, pfbi, sizeof(FILE_BASIC_INFO));
 		if ( bResult ) {
 			fbi_SetFileAttributes(hDlg, pfbi->FileAttributes);
@@ -130,7 +135,7 @@ private_UpdateButtonState(HWND hDlg, PFILE_BASIC_INFO pfbi) {
 	BOOL bEnable = pfbi->FileAttributes != fbi_GetFileAttributes(hDlg);
 	if ( !bEnable ) {
 		/** If change date time */
-    private_GetTimeDate(hDlg, IDC_BFI_CREATION_TIME_DATE, IDC_BFI_CREATION_TIME_TIME, &lint);
+        private_GetTimeDate(hDlg, IDC_BFI_CREATION_TIME_DATE, IDC_BFI_CREATION_TIME_TIME, &lint);
 		bEnable = (bEnable == TRUE || lint.QuadPart != pfbi->CreationTime.QuadPart);
 		private_GetTimeDate(hDlg, IDC_BFI_CHANGE_TIME_DATE, IDC_BFI_CHANGE_TIME_TIME, &lint);
 		bEnable = (bEnable == TRUE || lint.QuadPart != pfbi->ChangeTime.QuadPart);
@@ -139,17 +144,20 @@ private_UpdateButtonState(HWND hDlg, PFILE_BASIC_INFO pfbi) {
 		private_GetTimeDate(hDlg, IDC_BFI_LAST_WRITE_TIME_DATE, IDC_BFI_LAST_WRITE_TIME_TIME, &lint);
 		bEnable = (bEnable == TRUE || lint.QuadPart != pfbi->LastWriteTime.QuadPart);
 	}
-  EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_RESTORE), bEnable && IsDlgButtonChecked(hDlg, IDC_LOCKER) == BST_CHECKED);
+    EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_RESTORE), bEnable && IsDlgButtonChecked(hDlg, IDC_LOCKER) == BST_CHECKED);
 	EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_SAVE), bEnable && IsDlgButtonChecked(hDlg, IDC_LOCKER) == BST_CHECKED);
 }
 
 INT_PTR CALLBACK 
 fbi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 static FILE_BASIC_INFO fbi;
-static HANDLE hFile = NULL;
+static HANDLE hFile = nullptr;
   switch ( uMsg ) {
   	case WM_INITDIALOG: {
 		fbi_EnableControls(hDlg, FALSE);
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+        Button_SetElevationRequiredState(GetDlgItem(hDlg, IDC_FILEINFO_SAVE), TRUE);
+#endif
 		RtlZeroMemory(&fbi, sizeof(fbi));
 		return TRUE;
     }
@@ -205,15 +213,15 @@ static HANDLE hFile = NULL;
 			break;
 		}
 		case IDC_FILEINFO_RESTORE: {
-		  fbi_SetFileAttributes(hDlg, fbi.FileAttributes);
-		  private_UpdateButtonState(hDlg, &fbi);
-		  break;
+		    fbi_SetFileAttributes(hDlg, fbi.FileAttributes);
+		    private_UpdateButtonState(hDlg, &fbi);
+		    break;
 		}
 	  }
 	  break;
 	}
 	case WM_RESETFILE_HANDLE: {
-		hFile = NULL;
+        hFile = nullptr;
 		fbi_EnableControls(hDlg, FALSE);
 		break;
 	}

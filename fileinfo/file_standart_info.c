@@ -5,7 +5,7 @@
 INT_PTR CALLBACK 
 fsi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 static FILE_STANDARD_INFO fsi;
-static HANDLE hFile = NULL;
+static HANDLE hFile = nullptr;
   switch ( uMsg ) {
   	case WM_INITDIALOG: {
 		RtlZeroMemory(&fsi, sizeof(fsi));
@@ -49,7 +49,7 @@ static HANDLE hFile = NULL;
 		break;
 	}
 	case WM_RESETFILE_HANDLE: {
-		hFile = NULL;
+        hFile = nullptr;
 		break;
 	}
   }

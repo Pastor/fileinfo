@@ -11,4 +11,8 @@ BOOL CALLBACK common_CreateSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity);
 VOID CALLBACK common_FreeSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity);
 VOID CALLBACK common_ShowError(HWND hParent, LPTSTR lpstrMessage);
 
+#ifndef nulltr
+#define nullptr NULL
+#endif
+
 #endif /** _COMMON_H_ */

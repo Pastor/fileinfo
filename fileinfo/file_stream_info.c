@@ -3,15 +3,15 @@
 #include "resource.h"
 
 static struct tagTransferColumn {
-	INT			iId;
+	INT		iId;
 	LPTSTR	lpName;
-	INT			iWidth;
-	INT			iMask;
+	INT		iWidth;
+	INT		iMask;
 } g_ListViewColumn [] = {
 	{ 0,	TEXT("№"),	      30,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 1,	TEXT("Имя"),		  100, LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 2,	TEXT("Размер"),		75,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 3,	TEXT("Выделено"),	80,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT }
+	{ 1,	TEXT("Имя"),	  100, LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 2,	TEXT("Размер"),	  75,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 3,	TEXT("Выделено"), 80,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT }
 };
 
 
@@ -20,18 +20,18 @@ private_InitListView(HWND hListView) {
 	INT			  iCount;
 	LVCOLUMN	lvColumn;
 
-  for ( iCount = 0; iCount < sizeof(g_ListViewColumn)/sizeof(g_ListViewColumn[0]); ++iCount ) {
-		ZeroMemory( &lvColumn, sizeof(lvColumn) );
-		lvColumn.mask = g_ListViewColumn[iCount].iMask;
-		lvColumn.iSubItem = g_ListViewColumn[iCount].iId;
-		lvColumn.pszText = g_ListViewColumn[iCount].lpName;
-		lvColumn.cx = g_ListViewColumn[iCount].iWidth;
-		lvColumn.fmt = LVCFMT_CENTER;
-		ListView_InsertColumn( hListView, iCount, &lvColumn );
-	}
-	ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT );
-	ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_GRIDLINES, LVS_EX_GRIDLINES );
-	ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_SINGLEROW, LVS_EX_SINGLEROW );
+    for ( iCount = 0; iCount < sizeof(g_ListViewColumn)/sizeof(g_ListViewColumn[0]); ++iCount ) {
+	    ZeroMemory( &lvColumn, sizeof(lvColumn) );
+	    lvColumn.mask = g_ListViewColumn[iCount].iMask;
+	    lvColumn.iSubItem = g_ListViewColumn[iCount].iId;
+	    lvColumn.pszText = g_ListViewColumn[iCount].lpName;
+	    lvColumn.cx = g_ListViewColumn[iCount].iWidth;
+	    lvColumn.fmt = LVCFMT_CENTER;
+	    ListView_InsertColumn( hListView, iCount, &lvColumn );
+    }
+    ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT );
+    ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_GRIDLINES, LVS_EX_GRIDLINES );
+    ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_SINGLEROW, LVS_EX_SINGLEROW );
 }
 
 static LPTSTR CALLBACK
@@ -46,22 +46,24 @@ private_GetStreamName(HANDLE hFile, LPCTSTR pPrefix) {
 		StringCchCat( lpstrFileName, dwFileName, pPrefix);
 		return lpstrFileName;
 	}
-	return NULL;
+    return nullptr;
 }
 
 INT_PTR CALLBACK 
 fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-const static DWORD dwStreamSize = 1024 * sizeof(FILE_STREAM_INFO);
-__declspec (align(64)) static PFILE_STREAM_INFO pfsi;
-static HANDLE hFile = NULL;
-static HWND hListView = NULL;
-  switch ( uMsg ) {
-  	case WM_INITDIALOG: {
+    const static DWORD dwStreamSize = 1024 * sizeof(FILE_STREAM_INFO);
+    __declspec (align(64)) static PFILE_STREAM_INFO pfsi;
+    static HANDLE hFile = nullptr;
+    static HWND   hListView = nullptr;
+    static HWND   hCreateButton = nullptr;
+    switch ( uMsg ) {
+  	    case WM_INITDIALOG: {
+            hCreateButton = GetDlgItem(hDlg, IDC_CREATE_STREAM);
 			hListView = GetDlgItem(hDlg, IDC_STREAM_LIST);
 			pfsi = (PFILE_STREAM_INFO)LocalAlloc(LPTR, dwStreamSize);			
 			private_InitListView(hListView);
-		  return TRUE;
-    }
+		    return TRUE;
+        }
 		case WM_COMMAND: {
 			switch ( LOWORD(wParam) ) {
 		    case IDM_VIEW_STREAM: {
@@ -75,12 +77,13 @@ static HWND hListView = NULL;
 						ListView_GetItemText(hListView, iSelected, 1, szName, sizeof(szName));
 						lpstrFileName = private_GetStreamName(hFile, szName);
 						if ( lpstrFileName ) {
-							MessageBox(NULL, lpstrFileName, NULL, 0);
+                            MessageBox(hDlg, lpstrFileName, nullptr, 0);
 							LocalFree(lpstrFileName);
 						}
 					}
 					break;
 				}
+                case IDC_CREATE_STREAM:
 				case IDM_CREATE_STREAM: {
 					LPTSTR lpstrFileName;
 
@@ -96,30 +99,30 @@ static HWND hListView = NULL;
 		case WM_NOTIFY: {
 			LPNMHDR hdr = (LPNMHDR)lParam;
 			switch (hdr->code) { 
-		    case NM_RCLICK: {
+		        case NM_RCLICK: {
 					/** Or WM_MENUCOMMAND */
 					if ( hdr->idFrom == IDC_STREAM_LIST ) {
 						HMENU hStreamMenu;
-			      BOOL bView = FALSE;
-            UINT uFlags;
+			            BOOL bView = FALSE;
+                        UINT uFlags;
 						POINT p;
 
 						GetCursorPos(&p);
-			      uFlags = MF_BYPOSITION | MF_STRING | MF_POPUP;
-			      bView = ListView_GetSelectedCount(hListView) != 0;
-			      if ( !bView )
-              uFlags |= MF_DISABLED;
+			            uFlags = MF_BYPOSITION | MF_STRING | MF_POPUP;
+			            bView = ListView_GetSelectedCount(hListView) != 0;
+			            if ( !bView )
+                            uFlags |= MF_DISABLED;
 						if ( ListView_GetItemCount(hListView) == 0 )
 							break;
 						hStreamMenu = CreatePopupMenu();
-			      AppendMenu(hStreamMenu, uFlags,                    IDM_VIEW_STREAM,   TEXT("Посмотреть"));
-            AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("Создать"));
-            SetForegroundWindow(hListView);
-						TrackPopupMenu(hStreamMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, p.x, p.y, 0, hListView, NULL);
-			      DestroyMenu(hStreamMenu);
+			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   TEXT("Посмотреть"));
+                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("Создать"));
+                        SetForegroundWindow(hListView);
+                        TrackPopupMenu(hStreamMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, p.x, p.y, 0, hListView, nullptr);
+			            DestroyMenu(hStreamMenu);
 					}
 					break;
-			  }
+			    }
 			}
 			break;
 		}
@@ -134,25 +137,25 @@ static HWND hListView = NULL;
 					LVITEM	lvItem;
 					TCHAR   szSubBuffer[1024];
 					INT nIndex;
-          DWORD dwOffset;
+                    DWORD dwOffset;
 					PFILE_STREAM_INFO pInfo;
 
 					dwOffset = 0;
 					nIndex = 0;
-          pInfo = pfsi;
+                    pInfo = pfsi;
 					ListView_DeleteAllItems(hListView);
 					ZeroMemory( &lvItem, sizeof(lvItem) );
-	        lvItem.mask = LVIF_TEXT | LVIF_PARAM | LVIF_STATE; 
-	        lvItem.state = 0; 
-	        lvItem.stateMask = 0;
+	                lvItem.mask = LVIF_TEXT | LVIF_PARAM | LVIF_STATE; 
+	                lvItem.state = 0; 
+	                lvItem.stateMask = 0;
 					while (TRUE) {
 						lvItem.iItem = nIndex;
-		        lvItem.iSubItem = 0;
+		                lvItem.iSubItem = 0;
 						StringCchPrintf( szSubBuffer, sizeof(szSubBuffer), TEXT("%d"), nIndex);
-		        lvItem.pszText = szSubBuffer;
-		        lvItem.cchTextMax = lstrlen( szSubBuffer );
-		        ListView_InsertItem( hListView, &lvItem );
-            /** Name */
+		                lvItem.pszText = szSubBuffer;
+		                lvItem.cchTextMax = lstrlen( szSubBuffer );
+		                ListView_InsertItem( hListView, &lvItem );
+                        /** Name */
 						//StringCchPrintf( szSubBuffer, sizeof(szSubBuffer), TEXT("%*.*S"), pInfo->StreamNameLength / 2, pInfo->StreamNameLength / 2, pInfo->StreamName );
 						StringCchPrintf( szSubBuffer, sizeof(szSubBuffer), TEXT("%s"), pInfo->StreamName );
 						ListView_SetItemText( hListView, nIndex, 1, szSubBuffer );
@@ -177,17 +180,19 @@ static HWND hListView = NULL;
 		  if ( bClear ) {
 			  ListView_DeleteAllItems(hListView);
 		  }
+
+          EnableWindow(hCreateButton, hFile != nullptr);
 		  break;
 	  }
 	  case WM_RESETFILE_HANDLE: {
-		  hFile = NULL;
+          hFile = nullptr;
 		  break;
 	  }
-		case WM_CLOSE:
-		case WM_DESTROY: {
-			LocalFree(pfsi);
-			break;
-		}
+	  case WM_CLOSE:
+	  case WM_DESTROY: {
+		  LocalFree(pfsi);
+		  break;
+	  }
   }
   return FALSE;
 }
