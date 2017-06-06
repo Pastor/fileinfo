@@ -121,6 +121,7 @@ private_SetFileBasicInformation(HWND hDlg, PFILE_BASIC_INFO pfbi, HANDLE hFile) 
 			fbi_SetFileAttributes(hDlg, pfbi->FileAttributes);
 		}
 		EnableWindow(GetDlgItem(hDlg, IDC_LOCKER), TRUE);
+		CheckDlgButton(hDlg, IDC_LOCKER, BST_UNCHECKED);
         
 		private_SetTimeDate(hDlg, IDC_BFI_CREATION_TIME_DATE, IDC_BFI_CREATION_TIME_TIME, &pfbi->CreationTime);
 		private_SetTimeDate(hDlg, IDC_BFI_CHANGE_TIME_DATE, IDC_BFI_CHANGE_TIME_TIME, &pfbi->ChangeTime);

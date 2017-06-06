@@ -53,13 +53,13 @@ END
 MAINDIALOG DIALOGEX 0, 0, 189, 236
 STYLE DS_SYSMODAL | DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_ACCEPTFILES | WS_EX_TOOLWINDOW | WS_EX_CONTROLPARENT
-CAPTION "FileInfo"
+CAPTION "Информатор"
 FONT 8, "Lucida Console", 400, 0, 0xCC
 BEGIN
     PUSHBUTTON      "",IDC_OPENFILE,172,2,14,13,BS_ICON | BS_CENTER | BS_VCENTER
     EDITTEXT        IDC_EDITFILE,2,2,169,12,ES_AUTOHSCROLL | ES_READONLY
     CONTROL         "",IDC_INFOTAB,"SysTabControl32",0x0,2,19,184,180
-    CTEXT           "Created by Pastor<pastor@intersis.ru> 2015",IDC_STATIC,2,225,184,8,WS_DISABLED
+    CTEXT           "Created by Pastor<viruszold@gmail.com> 2017",IDC_STATIC,2,225,184,8,WS_DISABLED
     PUSHBUTTON      "Перезапуск",IDC_RESTART_AS_ADMINISTARTOR,2,201,66,21
 END
 
@@ -120,6 +120,16 @@ FONT 8, "Lucida Console", 400, 0, 0xCC
 BEGIN
     CONTROL         "",IDC_STREAM_LIST,"SysListView32",LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER | WS_TABSTOP,2,2,174,132
     PUSHBUTTON      "Создать",IDC_CREATE_STREAM,2,135,38,19
+END
+
+FILE_ID_INFO DIALOGEX 0, 0, 178, 156
+STYLE DS_SETFONT | WS_CHILD | WS_SYSMENU
+FONT 8, "Lucida Console", 400, 0, 0xCC
+BEGIN
+    EDITTEXT        IDC_VOLUME_SERIAL_NUMBER,34,8,135,14,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "Диск",IDC_STATIC,6,10,25,8
+    LTEXT           "ID",IDC_STATIC,6,26,25,8
+    EDITTEXT        IDC_FILE_UNIQUE_ID,34,24,135,14,ES_AUTOHSCROLL | ES_READONLY
 END
 
 
@@ -192,6 +202,18 @@ BEGIN
         TOPMARGIN, 2
         BOTTOMMARGIN, 154
     END
+
+    "FILE_ID_INFO", DIALOG
+    BEGIN
+        LEFTMARGIN, 2
+        RIGHTMARGIN, 176
+        VERTGUIDE, 6
+        VERTGUIDE, 31
+        VERTGUIDE, 34
+        VERTGUIDE, 169
+        TOPMARGIN, 2
+        BOTTOMMARGIN, 154
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -204,6 +226,23 @@ END
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
 IDI_FILEOPEN            ICON                    "folder_open.ico"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+FILE_ID_INFO AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+MAINDIALOG AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
 #endif    // Русский (Россия) resources
 /////////////////////////////////////////////////////////////////////////////
 

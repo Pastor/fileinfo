@@ -6,6 +6,7 @@
 #include "file_basic_info.h"
 #include "file_standart_info.h"
 #include "file_stream_info.h"
+#include "file_id_info.h"
 #include "resource.h"
 
 #pragma comment(lib, "comctl32.lib")
@@ -30,23 +31,23 @@ static struct tagTabCtrl {
     { FileBasicInfo, TEXT("Основная"), TEXT("FILE_BASIC_INFO"), nullptr, fbi_WindowHandler },
     { FileStandardInfo, TEXT("Стандартная"), TEXT("FILE_STANDART_INFO"), nullptr, fsi_WindowHandler },
     { FileStreamInfo, TEXT("Потоки"), TEXT("FILE_STREAM_INFO"), nullptr, fssi_WindowHandler },
-    { FileNameInfo, TEXT("NameInfo"), TEXT(""), nullptr, nullptr },
-    { FileCompressionInfo, TEXT("CompressionInfo"), TEXT(""), nullptr, nullptr },
-    { FileAttributeTagInfo, TEXT("AttributeTagInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdBothDirectoryInfo, TEXT("IdBothDirectoryInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdBothDirectoryRestartInfo, TEXT("IdBothDirectoryRestartInfo"), TEXT(""), nullptr, nullptr },
-    { FileDispositionInfo, TEXT("FileDispositionInfo"), TEXT(""), nullptr, nullptr },
-    { FileRenameInfo, TEXT("FileRenameInfo"), TEXT(""), nullptr, nullptr },
-    { FileAllocationInfo, TEXT("FileAllocationInfo"), TEXT(""), nullptr, nullptr },
-    { FileEndOfFileInfo, TEXT("FileEndOfFileInfo"), TEXT(""), nullptr, nullptr },
-    { FileIoPriorityHintInfo, TEXT("FileIoPriorityHintInfo"), TEXT(""), nullptr, nullptr }
+    //{ FileNameInfo, TEXT("NameInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileCompressionInfo, TEXT("CompressionInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileAttributeTagInfo, TEXT("AttributeTagInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileIdBothDirectoryInfo, TEXT("IdBothDirectoryInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileIdBothDirectoryRestartInfo, TEXT("IdBothDirectoryRestartInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileDispositionInfo, TEXT("FileDispositionInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileRenameInfo, TEXT("FileRenameInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileAllocationInfo, TEXT("FileAllocationInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileEndOfFileInfo, TEXT("FileEndOfFileInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileIoPriorityHintInfo, TEXT("FileIoPriorityHintInfo"), TEXT(""), nullptr, nullptr }
 #if (_WIN32_WINNT >= _WIN32_WINNT_WIN8)
-    ,
-    { FileStorageInfo, TEXT("FileStorageInfo"), TEXT(""), nullptr, nullptr },
-    { FileAlignmentInfo, TEXT("FileAlignmentInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdInfo, TEXT("FileIdInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdExtdDirectoryInfo, TEXT("FileIdExtdDirectoryInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdExtdDirectoryRestartInfo, TEXT("FileIdExtdDirectoryRestartInfo"), TEXT(""), nullptr, nullptr }
+    //,
+    //{ FileStorageInfo, TEXT("FileStorageInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileAlignmentInfo, TEXT("FileAlignmentInfo"), TEXT(""), nullptr, nullptr },
+    { FileIdInfo, TEXT("Идентификатор"), TEXT("FILE_ID_INFO"), nullptr, fii_WindowHandler }//,
+    //{ FileIdExtdDirectoryInfo, TEXT("FileIdExtdDirectoryInfo"), TEXT(""), nullptr, nullptr },
+    //{ FileIdExtdDirectoryRestartInfo, TEXT("FileIdExtdDirectoryRestartInfo"), TEXT(""), nullptr, nullptr }
 #endif
 };
 
@@ -270,7 +271,7 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch ( uMsg ) {
 		case WM_INITDIALOG: {
 		  hInstance = (HINSTANCE)lParam;
-		  SetWindowText(hDlg, TEXT("Информация о файле"));
+		  SetWindowText(hDlg, TEXT("Информатор"));
 		  hEditFile = GetDlgItem(hDlg, IDC_EDITFILE);
 		  hTabCtrl = GetDlgItem(hDlg, IDC_INFOTAB);
           hRestartAsAdministrator = GetDlgItem(hDlg, IDC_RESTART_AS_ADMINISTARTOR);

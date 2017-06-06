@@ -19,3 +19,4 @@ Release
 *.sdf
 *.suo
 UpgradeLog.htm
+.vs
