@@ -7,7 +7,7 @@
 //
 // Generated from the TEXTINCLUDE 2 resource.
 //
-#include "afxres.h"
+#include "winres.h"
 
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
@@ -132,6 +132,12 @@ BEGIN
     EDITTEXT        IDC_FILE_UNIQUE_ID,34,24,135,14,ES_AUTOHSCROLL | ES_READONLY
 END
 
+FILE_EXIF_INFO DIALOGEX 0, 0, 178, 156
+STYLE DS_SETFONT | WS_CHILD | WS_SYSMENU
+FONT 8, "Lucida Console", 400, 0, 0xCC
+BEGIN
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -214,6 +220,10 @@ BEGIN
         TOPMARGIN, 2
         BOTTOMMARGIN, 154
     END
+
+    "FILE_EXIF_INFO", DIALOG
+    BEGIN
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -239,6 +249,11 @@ BEGIN
 END
 
 MAINDIALOG AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+FILE_EXIF_INFO AFX_DIALOG_LAYOUT
 BEGIN
     0
 END

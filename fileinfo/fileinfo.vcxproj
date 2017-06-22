@@ -44,11 +44,15 @@
     <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
     <IntDir>$(Configuration)\</IntDir>
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>$(SolutionDir)3rdParty\exiv2\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)3rdParty\exiv2\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
     <IntDir>$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>$(SolutionDir)3rdParty\exiv2\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)3rdParty\exiv2\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -61,7 +65,7 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <CompileAs>CompileAsC</CompileAs>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -82,7 +86,7 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat />
-      <CompileAs>CompileAsC</CompileAs>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -98,6 +102,7 @@
   <ItemGroup>
     <ClCompile Include="common.c" />
     <ClCompile Include="file_basic_info.c" />
+    <ClCompile Include="file_exif_info.cpp" />
     <ClCompile Include="file_id_info.c" />
     <ClCompile Include="file_standart_info.c" />
     <ClCompile Include="file_stream_info.c" />
@@ -106,6 +111,7 @@
   <ItemGroup>
     <ClInclude Include="common.h" />
     <ClInclude Include="file_basic_info.h" />
+    <ClInclude Include="file_exif_info.h" />
     <ClInclude Include="file_id_info.h" />
     <ClInclude Include="file_standart_info.h" />
     <ClInclude Include="file_stream_info.h" />

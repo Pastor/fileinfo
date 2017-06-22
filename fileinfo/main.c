@@ -7,6 +7,7 @@
 #include "file_standart_info.h"
 #include "file_stream_info.h"
 #include "file_id_info.h"
+#include "file_exif_info.h"
 #include "resource.h"
 
 #pragma comment(lib, "comctl32.lib")
@@ -49,6 +50,7 @@ static struct tagTabCtrl {
     //{ FileIdExtdDirectoryInfo, TEXT("FileIdExtdDirectoryInfo"), TEXT(""), nullptr, nullptr },
     //{ FileIdExtdDirectoryRestartInfo, TEXT("FileIdExtdDirectoryRestartInfo"), TEXT(""), nullptr, nullptr }
 #endif
+    ,{ MaximumFileInfoByHandleClass, TEXT("Изображение"), TEXT("FILE_EXIF_INFO"), nullptr, fxi_WindowHandler }
 };
 
 INT_PTR CALLBACK
@@ -170,13 +172,15 @@ CreateToolTipForRect(HWND hwndParent, HINSTANCE hInstance, LPTSTR lpstrText) {
 }
 
 static VOID CALLBACK
-private_SetFileHandle(HWND hDlg, HWND hTabCtrl, HANDLE hFile) {
+private_SetFileHandle(HWND hDlg, HWND hTabCtrl, HANDLE hFile, LPCTSTR lpcstrFileName) {
 	int iCurTab;
 
 	iCurTab = TabCtrl_GetCurSel(hTabCtrl);
 	if ( iCurTab >= 0 && iCurTab < sizeof(g_TabInfoCtrl)/sizeof(g_TabInfoCtrl[0]) ) {
-		if ( g_TabInfoCtrl[iCurTab].hWnd )
-            SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_HANDLE, (WPARAM)nullptr, (LPARAM)hFile);
+		if (g_TabInfoCtrl[iCurTab].hWnd) {
+			SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_HANDLE, (WPARAM)nullptr, (LPARAM)hFile);
+			SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_NAME,   (WPARAM)nullptr, (LPARAM)lpcstrFileName);
+		}
 	}
 }
 
@@ -247,14 +251,14 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 	if ( hFile == INVALID_HANDLE_VALUE ) {
 		common_ShowError(hDlg, TEXT("CreateFile"));
 		SetWindowText(hEditFile, TEXT(""));
-        private_SetFileHandle(hDlg, hTabCtrl, nullptr);
+        private_SetFileHandle(hDlg, hTabCtrl, nullptr, lpcstrFileName);
 	} else {
 		private_EnumerateStream(lpcstrFileName);
 		SetWindowText(hEditFile, lpcstrFileName);
         if ((*hTooltip) != nullptr)
 		    DestroyWindow( (*hTooltip) );
 	    (*hTooltip) = CreateToolTipForRect(hEditFile, hInstance, (LPTSTR)lpcstrFileName);
-		private_SetFileHandle(hDlg, hTabCtrl, hFile);
+		private_SetFileHandle(hDlg, hTabCtrl, hFile, lpcstrFileName);
 	}
 	common_FreeSecurityAttributes(&sa);
   return hFile;
@@ -268,6 +272,8 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     static HWND      hEditFile = nullptr;
     static HWND      hTabCtrl = nullptr;
     static HWND      hRestartAsAdministrator = nullptr;
+	static LPTSTR    lpstrFileName = nullptr;
+	static DWORD     dwFileNameLength = nullptr;
 	switch ( uMsg ) {
 		case WM_INITDIALOG: {
 		  hInstance = (HINSTANCE)lParam;
@@ -296,8 +302,10 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 					ShowWindow( g_TabInfoCtrl[iTab].hWnd, SW_HIDE );
 				}
 				ShowWindow( g_TabInfoCtrl[iCurTab].hWnd, SW_SHOW );
-				if ( iCurTab >= 0 && iCurTab < sizeof(g_TabInfoCtrl)/sizeof(g_TabInfoCtrl[0]) )
-                    SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_HANDLE, (WPARAM)nullptr, (LPARAM)hFile);
+				if (iCurTab >= 0 && iCurTab < sizeof(g_TabInfoCtrl) / sizeof(g_TabInfoCtrl[0])) {
+					SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_HANDLE, (WPARAM)nullptr, (LPARAM)hFile);
+					SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_NAME, (WPARAM)nullptr, (LPARAM)lpstrFileName);
+				}
 				break;
 			  }
 			}
@@ -315,8 +323,6 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			break;
 		}
 		case WM_COMMAND: {
-			LPTSTR lpstrFileName;
-			DWORD  dwFileNameLength;
 			WORD wNotifyId = HIWORD(wParam);
 			WORD wCtrlId = LOWORD(wParam);
 			
@@ -338,6 +344,8 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                         CloseHandle(hFile);
 				    RtlZeroMemory(&bi, sizeof(bi));
 				    dwFileNameLength = MAX_PATH * 1024 * sizeof(TCHAR);
+					if (lpstrFileName != nullptr)
+						LocalFree(lpstrFileName);
 				    lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
   				
 				    bi.hwndOwner = hDlg;
@@ -350,13 +358,12 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 					    SHGetPathFromIDList(lpIdList, lpstrFileName);
 					    if ( SUCCEEDED( SHGetMalloc(&comMalloc) ) ) {
-					        comMalloc->lpVtbl->Free(comMalloc, lpIdList);
-					        comMalloc->lpVtbl->Release(comMalloc);
+					        comMalloc->Free(lpIdList);
+					        comMalloc->Release();
 					    }
                         private_EnumerateStream(lpstrFileName);
 					    hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, lpstrFileName, dwFileNameLength, hInstance, &hTooltip);					
 				    }
-				    LocalFree(lpstrFileName);
 				    break;
 			    }
                 case IDC_RESTART_AS_ADMINISTARTOR: {
@@ -381,6 +388,9 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				CloseHandle(hFile);
 			}
             hFile = nullptr;
+			if (lpstrFileName != nullptr)
+				LocalFree(lpstrFileName);
+			lpstrFileName = nullptr;
 			EndDialog(hDlg, 0);
 			return TRUE;
 		}

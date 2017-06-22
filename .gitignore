@@ -20,3 +20,4 @@ Release
 *.suo
 UpgradeLog.htm
 .vs
+.temporary
