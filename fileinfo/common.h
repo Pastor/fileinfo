@@ -12,6 +12,9 @@ BOOL CALLBACK common_CreateSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity);
 VOID CALLBACK common_FreeSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity);
 VOID CALLBACK common_ShowError(HWND hParent, LPTSTR lpstrMessage);
 
+HWND CreateToolTipForRect(HWND hwndParent, HINSTANCE hInstance, LPTSTR lpstrText);
+HWND CreateToolTip(int iCtrlId, HWND hDlg, HINSTANCE hInstance, PTSTR pszText);
+
 #ifndef nullptr
 #define nullptr NULL
 #endif

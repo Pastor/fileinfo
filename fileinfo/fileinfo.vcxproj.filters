@@ -33,7 +33,7 @@
     <ClCompile Include="file_id_info.c">
       <Filter>Файлы исходного кода</Filter>
     </ClCompile>
-    <ClCompile Include="file_exif_info.cpp">
+    <ClCompile Include="file_exif_info.c">
       <Filter>Файлы исходного кода</Filter>
     </ClCompile>
   </ItemGroup>

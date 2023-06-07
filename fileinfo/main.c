@@ -29,9 +29,9 @@ static struct tagTabCtrl {
 	HWND                      hWnd;
 	DLGPROC                   pfnProc;
 } g_TabInfoCtrl [] = {
-    { FileBasicInfo, TEXT("Основная"), TEXT("FILE_BASIC_INFO"), nullptr, fbi_WindowHandler },
-    { FileStandardInfo, TEXT("Стандартная"), TEXT("FILE_STANDART_INFO"), nullptr, fsi_WindowHandler },
-    { FileStreamInfo, TEXT("Потоки"), TEXT("FILE_STREAM_INFO"), nullptr, fssi_WindowHandler },
+    { FileBasicInfo, TEXT("Основная"), TEXT("FILE_BASIC_INFO"), NULL, fbi_WindowHandler },
+    { FileStandardInfo, TEXT("Стандартная"), TEXT("FILE_STANDART_INFO"), NULL, fsi_WindowHandler },
+    { FileStreamInfo, TEXT("Потоки"), TEXT("FILE_STREAM_INFO"), NULL, fssi_WindowHandler },
     //{ FileNameInfo, TEXT("NameInfo"), TEXT(""), nullptr, nullptr },
     //{ FileCompressionInfo, TEXT("CompressionInfo"), TEXT(""), nullptr, nullptr },
     //{ FileAttributeTagInfo, TEXT("AttributeTagInfo"), TEXT(""), nullptr, nullptr },
@@ -46,11 +46,11 @@ static struct tagTabCtrl {
     //,
     //{ FileStorageInfo, TEXT("FileStorageInfo"), TEXT(""), nullptr, nullptr },
     //{ FileAlignmentInfo, TEXT("FileAlignmentInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdInfo, TEXT("Идентификатор"), TEXT("FILE_ID_INFO"), nullptr, fii_WindowHandler }//,
+    { FileIdInfo, TEXT("Идентификатор"), TEXT("FILE_ID_INFO"), NULL, fii_WindowHandler }//,
     //{ FileIdExtdDirectoryInfo, TEXT("FileIdExtdDirectoryInfo"), TEXT(""), nullptr, nullptr },
     //{ FileIdExtdDirectoryRestartInfo, TEXT("FileIdExtdDirectoryRestartInfo"), TEXT(""), nullptr, nullptr }
 #endif
-    ,{ MaximumFileInfoByHandleClass, TEXT("Изображение"), TEXT("FILE_EXIF_INFO"), nullptr, fxi_WindowHandler }
+    ,{ MaximumFileInfoByHandleClass, TEXT("EXIF"), TEXT("FILE_EXIF_INFO"), NULL, fxi_WindowHandler }
 };
 
 INT_PTR CALLBACK
@@ -64,8 +64,8 @@ int WINAPI
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	InitCommonControls();
     SetDebugStatusForCurentProc();
-    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    DialogBoxParam(hInstance, TEXT("MAINDIALOG"), nullptr, MainDialog, (LPARAM)hInstance);
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    DialogBoxParam(hInstance, TEXT("MAINDIALOG"), NULL, MainDialog, (LPARAM)hInstance);
 	return EXIT_SUCCESS;
 }
 
@@ -100,13 +100,13 @@ private_InitTabInfoCtrl(HWND hTabCtrl, HINSTANCE hInstance) {
 	for (iTab = 0; iTab < sizeof(g_TabInfoCtrl)/sizeof(g_TabInfoCtrl[0]); ++iTab) {
 		tci.pszText = g_TabInfoCtrl[iTab].lpstrCaption;
 		TabCtrl_InsertItem(hTabCtrl, iTab, &tci);
-        if (g_TabInfoCtrl[iTab].hWnd == nullptr) {
+        if (g_TabInfoCtrl[iTab].hWnd == NULL) {
 			g_TabInfoCtrl[iTab].hWnd = CreateDialogParam(
 				hInstance, 
 				g_TabInfoCtrl[iTab].lpstrWindow, 
 				hTabCtrl, 
 				g_TabInfoCtrl[iTab].pfnProc, 
-                (LPARAM)nullptr
+                (LPARAM)hInstance
 			);
 			MoveWindow( g_TabInfoCtrl[iTab].hWnd, rect.left + 2, rect.top + 21, rect.right - 5, rect.bottom - 24, TRUE);
 			ShowWindow( g_TabInfoCtrl[iTab].hWnd, SW_HIDE );
@@ -126,15 +126,15 @@ CreateToolTip(int iCtrlId, HWND hDlg, HINSTANCE hInstance, PTSTR pszText) {
     return FALSE;
   }
   hwndTool = GetDlgItem(hDlg, iCtrlId);
-  hwndTip = CreateWindowEx(0, TOOLTIPS_CLASS, nullptr,
+  hwndTip = CreateWindowEx(0, TOOLTIPS_CLASS, NULL,
                             WS_POPUP |TTS_ALWAYSTIP | TTS_BALLOON,
                             CW_USEDEFAULT, CW_USEDEFAULT,
                             CW_USEDEFAULT, CW_USEDEFAULT,
-                            hDlg, nullptr,
-                            hInstance, nullptr);
+                            hDlg, NULL,
+                            hInstance, NULL);
   
   if (!hwndTool || !hwndTip) {
-      return (HWND)nullptr;
+      return (HWND)NULL;
   }                              
                             
   
@@ -178,8 +178,8 @@ private_SetFileHandle(HWND hDlg, HWND hTabCtrl, HANDLE hFile, LPCTSTR lpcstrFile
 	iCurTab = TabCtrl_GetCurSel(hTabCtrl);
 	if ( iCurTab >= 0 && iCurTab < sizeof(g_TabInfoCtrl)/sizeof(g_TabInfoCtrl[0]) ) {
 		if (g_TabInfoCtrl[iCurTab].hWnd) {
-			SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_HANDLE, (WPARAM)nullptr, (LPARAM)hFile);
-			SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_NAME,   (WPARAM)nullptr, (LPARAM)lpcstrFileName);
+			SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_HANDLE, (WPARAM)NULL, (LPARAM)hFile);
+			SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_NAME,   (WPARAM)NULL, (LPARAM)lpcstrFileName);
 		}
 	}
 }
@@ -266,14 +266,14 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 
 INT_PTR CALLBACK
 MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    static HINSTANCE hInstance = nullptr;
-    static HANDLE    hFile = nullptr;
-    static HWND      hTooltip = nullptr;
-    static HWND      hEditFile = nullptr;
-    static HWND      hTabCtrl = nullptr;
-    static HWND      hRestartAsAdministrator = nullptr;
-	static LPTSTR    lpstrFileName = nullptr;
-	static DWORD     dwFileNameLength = nullptr;
+    static HINSTANCE hInstance = NULL;
+    static HANDLE    hFile = NULL;
+    static HWND      hTooltip = NULL;
+    static HWND      hEditFile = NULL;
+    static HWND      hTabCtrl = NULL;
+    static HWND      hRestartAsAdministrator = NULL;
+	static LPTSTR    lpstrFileName = NULL;
+	static DWORD     dwFileNameLength = 0;
 	switch ( uMsg ) {
 		case WM_INITDIALOG: {
 		  hInstance = (HINSTANCE)lParam;
@@ -303,8 +303,8 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				}
 				ShowWindow( g_TabInfoCtrl[iCurTab].hWnd, SW_SHOW );
 				if (iCurTab >= 0 && iCurTab < sizeof(g_TabInfoCtrl) / sizeof(g_TabInfoCtrl[0])) {
-					SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_HANDLE, (WPARAM)nullptr, (LPARAM)hFile);
-					SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_NAME, (WPARAM)nullptr, (LPARAM)lpstrFileName);
+					SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_HANDLE, (WPARAM)NULL, (LPARAM)hFile);
+					SendMessage(g_TabInfoCtrl[iCurTab].hWnd, WM_SETFILE_NAME, (WPARAM)NULL, (LPARAM)lpstrFileName);
 				}
 				break;
 			  }
@@ -344,7 +344,7 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                         CloseHandle(hFile);
 				    RtlZeroMemory(&bi, sizeof(bi));
 				    dwFileNameLength = MAX_PATH * 1024 * sizeof(TCHAR);
-					if (lpstrFileName != nullptr)
+					if (lpstrFileName != NULL)
 						LocalFree(lpstrFileName);
 				    lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
   				
@@ -353,7 +353,8 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				    bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_RETURNFSANCESTORS;
                     SHGetFolderLocation(hDlg, CSIDL_DRIVES, nullptr, 0, (LPITEMIDLIST *)&bi.pidlRoot);
 				    lpIdList = SHBrowseForFolder(&bi);
-                    if (lpIdList != nullptr && SUCCEEDED(lpIdList)) {
+                    if (lpIdList != NULL && SUCCEEDED(lpIdList)) {
+#if defined(__cplusplus)
 			            IMalloc *comMalloc;
 
 					    SHGetPathFromIDList(lpIdList, lpstrFileName);
@@ -361,6 +362,10 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 					        comMalloc->Free(lpIdList);
 					        comMalloc->Release();
 					    }
+#else
+						SHGetPathFromIDList(lpIdList, lpstrFileName);
+						CoTaskMemFree(lpIdList);
+#endif
                         private_EnumerateStream(lpstrFileName);
 					    hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, lpstrFileName, dwFileNameLength, hInstance, &hTooltip);					
 				    }
@@ -375,8 +380,8 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                     if (dwRet > 0 && dwRet < dwSize) {
                         szPathBuffer[dwRet * sizeof(TCHAR)] = (TCHAR)0x00;
 
-                        ShellExecute(nullptr, TEXT("runas"), szPathBuffer, nullptr, nullptr, SW_SHOWNORMAL);
-                        SendMessage(hDlg, WM_CLOSE, (WPARAM)nullptr, (LPARAM)nullptr);
+                        ShellExecute(NULL, TEXT("runas"), szPathBuffer, NULL, NULL, SW_SHOWNORMAL);
+                        SendMessage(hDlg, WM_CLOSE, (WPARAM)NULL, (LPARAM)NULL);
                     }
                     break;
                 }
@@ -384,13 +389,13 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		    break;
 		}
 		case WM_CLOSE: {
-			if (hFile != nullptr && hFile != INVALID_HANDLE_VALUE) {
+			if (hFile != NULL && hFile != INVALID_HANDLE_VALUE) {
 				CloseHandle(hFile);
 			}
-            hFile = nullptr;
-			if (lpstrFileName != nullptr)
+            hFile = NULL;
+			if (lpstrFileName != NULL)
 				LocalFree(lpstrFileName);
-			lpstrFileName = nullptr;
+			lpstrFileName = NULL;
 			EndDialog(hDlg, 0);
 			return TRUE;
 		}
@@ -410,13 +415,13 @@ SetDebugStatusForCurentProc(VOID)
         return FALSE;
     }
 
-    if (!LookupPrivilegeValue((LPTSTR)nullptr, SE_DEBUG_NAME, &DebugValue)) {
+    if (!LookupPrivilegeValue((LPTSTR)NULL, SE_DEBUG_NAME, &DebugValue)) {
         return FALSE;
     }
     tkp.PrivilegeCount = 1;
     tkp.Privileges[0].Luid = DebugValue;
     tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    bRet = AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(TOKEN_PRIVILEGES), (PTOKEN_PRIVILEGES)nullptr, (PDWORD)nullptr);
+    bRet = AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(TOKEN_PRIVILEGES), (PTOKEN_PRIVILEGES)NULL, (PDWORD)NULL);
     return bRet;
 }
 
@@ -424,7 +429,7 @@ BOOL
 IsElevated(VOID) 
 {
     BOOL fRet = FALSE;
-    HANDLE hToken = nullptr;
+    HANDLE hToken = NULL;
     if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
         TOKEN_ELEVATION Elevation;
         DWORD cbSize = sizeof(TOKEN_ELEVATION);

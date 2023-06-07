@@ -4,8 +4,8 @@
 
 INT_PTR CALLBACK 
 fxi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-static HANDLE hFile = nullptr;
-static LPTSTR lpstrFileName = nullptr;
+  static HANDLE hFile = NULL;
+  static LPTSTR lpstrFileName = NULL;
   switch ( uMsg ) {
   	case WM_INITDIALOG: {
 		return TRUE;
@@ -18,7 +18,7 @@ static LPTSTR lpstrFileName = nullptr;
 	}
 	case WM_SETFILE_NAME: {
 		int size = lstrlen((LPCTSTR)lParam);
-		if (lpstrFileName != nullptr) {
+		if (lpstrFileName != NULL) {
 			LocalFree(lpstrFileName);
 		}
 		lpstrFileName = (LPTSTR)LocalAlloc(LPTR, size * sizeof(TCHAR));
@@ -26,19 +26,19 @@ static LPTSTR lpstrFileName = nullptr;
 		break;
 	}
 	case WM_RESETFILE_HANDLE: {
-        hFile = nullptr;
-		if (lpstrFileName != nullptr) {
+        hFile = NULL;
+		if (lpstrFileName != NULL) {
 			LocalFree(lpstrFileName);
 		}
-		lpstrFileName = nullptr;
+		lpstrFileName = NULL;
 		break;
 	}
 	case WM_CLOSE:
 	case WM_DESTROY: {
-		if (lpstrFileName != nullptr) {
+		if (lpstrFileName != NULL) {
 			LocalFree(lpstrFileName);
 		}
-		lpstrFileName = nullptr;
+		lpstrFileName = NULL;
 		break;
 	}
   }

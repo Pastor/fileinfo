@@ -7,7 +7,7 @@
 //
 // Generated from the TEXTINCLUDE 2 resource.
 //
-#include "winres.h"
+#include "afxres.h"
 
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
@@ -59,7 +59,7 @@ BEGIN
     PUSHBUTTON      "",IDC_OPENFILE,172,2,14,13,BS_ICON | BS_CENTER | BS_VCENTER
     EDITTEXT        IDC_EDITFILE,2,2,169,12,ES_AUTOHSCROLL | ES_READONLY
     CONTROL         "",IDC_INFOTAB,"SysTabControl32",0x0,2,19,184,180
-    CTEXT           "Created by Pastor<viruszold@gmail.com> 2017",IDC_STATIC,2,225,184,8,WS_DISABLED
+    CTEXT           "Created by Pastor<viruszold@gmail.com> 2018",IDC_STATIC,2,225,184,8,WS_DISABLED
     PUSHBUTTON      "Перезапуск",IDC_RESTART_AS_ADMINISTARTOR,2,201,66,21
 END
 

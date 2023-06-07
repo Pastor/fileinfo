@@ -115,7 +115,7 @@ private_GetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGE
 static VOID CALLBACK
 private_SetFileBasicInformation(HWND hDlg, PFILE_BASIC_INFO pfbi, HANDLE hFile) {
 	fbi_EnableControls(hDlg, FALSE);
-    if (hFile != nullptr && hFile != INVALID_HANDLE_VALUE) {
+    if (hFile != NULL && hFile != INVALID_HANDLE_VALUE) {
 		BOOL bResult = GetFileInformationByHandleEx( hFile, FileBasicInfo, pfbi, sizeof(FILE_BASIC_INFO));
 		if ( bResult ) {
 			fbi_SetFileAttributes(hDlg, pfbi->FileAttributes);
@@ -152,7 +152,7 @@ private_UpdateButtonState(HWND hDlg, PFILE_BASIC_INFO pfbi) {
 INT_PTR CALLBACK 
 fbi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 static FILE_BASIC_INFO fbi;
-static HANDLE hFile = nullptr;
+static HANDLE hFile = NULL;
   switch ( uMsg ) {
   	case WM_INITDIALOG: {
 		fbi_EnableControls(hDlg, FALSE);
@@ -219,7 +219,7 @@ static HANDLE hFile = nullptr;
 	  break;
 	}
 	case WM_RESETFILE_HANDLE: {
-        hFile = nullptr;
+        hFile = NULL;
 		fbi_EnableControls(hDlg, FALSE);
 		break;
 	}

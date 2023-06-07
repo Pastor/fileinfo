@@ -4,8 +4,8 @@
 
 INT_PTR CALLBACK 
 fii_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-static FILE_ID_INFO fii;
-static HANDLE hFile = nullptr;
+  static FILE_ID_INFO fii;
+  static HANDLE hFile = NULL;
   switch ( uMsg ) {
   	case WM_INITDIALOG: {
 		RtlZeroMemory(&fii, sizeof(fii));
@@ -45,7 +45,7 @@ static HANDLE hFile = nullptr;
 		break;
 	}
 	case WM_RESETFILE_HANDLE: {
-        hFile = nullptr;
+        hFile = NULL;
 		break;
 	}
   }
