@@ -7,9 +7,9 @@
 Позволяет открыть любой файл или папку и изучить/изменить:
 - **Основные** — атрибуты файла (readonly, hidden, system, …), временны́е метки (creation, access, write, change)
 - **Стандартные** — размер на диске, размер файла, кол-во жёстких ссылок, флаги directory/delete-pending
-- **Потоки** — NTFS alternate data streams (список, просмотр)
+- **Потоки** — NTFS alternate data streams (список, просмотр, сохранение в файл, создание нового потока, запись файла в поток)
 - **Идентификаторы** — volume serial number, 128-bit file unique ID (FileIdInfo, требует Windows 8+)
-- **EXIF** — заглушка, планируется интеграция с Exiv2
+- **EXIF** — EXIF/IPTC/XMP через Exiv2 (при наличии библиотеки); без Exiv2 — заглушка-сообщение
 
 ## Архитектура
 
@@ -38,16 +38,16 @@ WinMain()
 | `common.c/h` | CreateSecurityAttributes (ACL для Administrators), FormatMessage-ошибки |
 | `file_basic_info.c/h` | Атрибуты + DateTimePicker для 4 временных меток, сохранение через SetFileInformationByHandle |
 | `file_standart_info.c/h` | Отображение FILE_STANDARD_INFO (read-only) |
-| `file_stream_info.c/h` | ListView NTFS-потоков, контекстное меню (просмотр / создать) |
+| `file_stream_info.c/h` | ListView NTFS-потоков; контекстное меню: просмотр, сохранить в файл, создать (загрузить из файла); кнопка «Создать» — inline-редактирование имени нового потока |
 | `file_id_info.c/h` | Volume serial + 128-bit file ID в hex |
-| `file_exif_info.c/h` | Заглушка под будущую Exiv2-интеграцию |
+| `file_exif_info.c/h` | EXIF/IPTC/XMP через Exiv2 (`#ifdef EXIV2_AVAILABLE`); без библиотеки — заглушка |
 | `resource.h` | Все IDC_* / IDM_* константы |
 
 ## Сборка
 
-- Visual Studio 2019+ (toolset v142), Win32 только
+- Visual Studio 2019+ (toolset v142)
 - Windows SDK 10.0.18362.0
-- Конфигурации: Debug|Win32, Release|Win32
+- Конфигурации: Debug|Win32, Release|Win32, Debug|x64, Release|x64
 - Зависимости: comctl32.lib, advapi32.lib
 - Путь к Exiv2 прописан в .vcxproj (3rdParty\exiv2\), библиотека не подключена
 - **CI**: GitHub Actions → `.github/workflows/msbuild.yml` (Release|Win32)
@@ -56,8 +56,8 @@ WinMain()
 
 ### Нереализовано
 - [x] EXIF-вкладка — реализована через Exiv2 (см. «Подключение Exiv2» ниже)
-- [ ] Создание нового NTFS-потока (IDM_CREATE_STREAM — обработчик пустой)
-- [ ] x64 конфигурация сборки отсутствует
+- [x] Создание нового NTFS-потока — кнопка `IDC_CREATE_STREAM` (inline-ввод имени) и контекстное меню `IDM_CREATE_STREAM` (запись содержимого файла в поток)
+- [x] x64 конфигурация сборки — добавлены `Debug|x64` и `Release|x64`
 
 ### Подключение Exiv2 (EXIF-поддержка)
 
@@ -96,3 +96,4 @@ WinMain()
 3. ~~**ERROR_MORE_DATA**~~ — `fssi_WindowHandler` теперь удваивает буфер и повторяет вызов
 4. ~~**Документация**~~ — написан полноценный `README.md`
 5. ~~**Лицензия**~~ — добавлен `LICENSE` (MIT)
+6. ~~**Создание/запись потоков**~~ — кнопка «Создать» открывает inline-редактор имени; контекстное меню «Создать» записывает содержимое выбранного файла в поток; «Сохранить» сохраняет поток в файл
