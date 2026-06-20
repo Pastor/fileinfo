@@ -4,9 +4,9 @@
 #include <strsafe.h>
 
 
-#define WM_SETFILE_HANDLE    WM_USER + 1020
-#define WM_RESETFILE_HANDLE  WM_USER + 1021
-#define WM_SETFILE_NAME      WM_USER + 1022
+#define WM_SETFILE_HANDLE    (WM_USER + 1020)
+#define WM_RESETFILE_HANDLE  (WM_USER + 1021)
+#define WM_SETFILE_NAME      (WM_USER + 1022)
 
 BOOL CALLBACK common_CreateSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity);
 VOID CALLBACK common_FreeSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity);

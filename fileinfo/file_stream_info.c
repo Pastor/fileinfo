@@ -8,10 +8,10 @@ static struct tagTransferColumn {
 	INT		iWidth;
 	INT		iMask;
 } g_ListViewColumn [] = {
-	{ 0,	TEXT("№"),	      30,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 1,	TEXT("Имя"),	  100, LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 2,	TEXT("Размер"),	  75,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 3,	TEXT("Выделено"), 80,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT }
+	{ 0,	TEXT("пїЅ"),	      30,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 1,	TEXT("пїЅпїЅпїЅ"),	  100, LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 2,	TEXT("пїЅпїЅпїЅпїЅпїЅпїЅ"),	  75,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 3,	TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), 80,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT }
 };
 
 
@@ -47,13 +47,15 @@ private_GetStreamName(HANDLE hFile, LPCTSTR pPrefix) {
 		return NULL;
 	RtlZeroMemory(pfni, dwFileStructureLength);
 	if ( GetFileInformationByHandleEx( hFile, FileNameInfo, pfni, dwFileStructureLength) ) {
-		DWORD dwFileName = pfni->FileNameLength * sizeof(TCHAR) + 40 + dwPrefixLength;
-		lpstrFileName = (LPTSTR)LocalAlloc(LPTR,  dwFileName);
+		/* FileNameLength is in bytes; allocate extra for ":" + prefix + null */
+		DWORD cbFileName = pfni->FileNameLength + (dwPrefixLength + 4) * sizeof(TCHAR);
+		DWORD cchFileName = cbFileName / sizeof(TCHAR);
+		lpstrFileName = (LPTSTR)LocalAlloc(LPTR, cbFileName);
 		if (lpstrFileName != NULL) {
-			StringCchCopy(lpstrFileName, dwFileName, pfni->FileName);
+			StringCchCopy(lpstrFileName, cchFileName, pfni->FileName);
 			if (dwPrefixLength > 0) {
-				StringCchCat(lpstrFileName, dwFileName, TEXT(":"));
-				StringCchCat(lpstrFileName, dwFileName, pPrefix);
+				StringCchCat(lpstrFileName, cchFileName, TEXT(":"));
+				StringCchCat(lpstrFileName, cchFileName, pPrefix);
 			}
 		}
 	}
@@ -62,10 +64,10 @@ private_GetStreamName(HANDLE hFile, LPCTSTR pPrefix) {
 }
 
 
-INT_PTR CALLBACK 
+INT_PTR CALLBACK
 fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    const static DWORD dwStreamSize = 1024 * sizeof(FILE_STREAM_INFO);
-    __declspec (align(64)) static PFILE_STREAM_INFO pfsi;
+    static PFILE_STREAM_INFO pfsi = NULL;
+    static DWORD     dwPfsiSize = 0;
     static HANDLE    hFile = NULL;
     static HWND      hListView = NULL;
     static HWND      hCreateButton = NULL;
@@ -75,7 +77,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			hInstance = (HINSTANCE)lParam;
             hCreateButton = GetDlgItem(hDlg, IDC_CREATE_STREAM);
 			hListView = GetDlgItem(hDlg, IDC_STREAM_LIST);
-			pfsi = (PFILE_STREAM_INFO)LocalAlloc(LPTR, dwStreamSize);			
+			dwPfsiSize = 4 * 1024;
+			pfsi = (PFILE_STREAM_INFO)LocalAlloc(LPTR, dwPfsiSize);
 			private_InitListView(hListView);
 		    return TRUE;
         }
@@ -88,8 +91,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 					iSelected = ListView_GetSelectionMark(hListView);
 					if ( iSelected >= 0 ) {
-						TCHAR szName[(MAX_PATH + 64) * sizeof(TCHAR)];
-						ListView_GetItemText(hListView, iSelected, 1, szName, sizeof(szName));
+						TCHAR szName[MAX_PATH + 64];
+						ListView_GetItemText(hListView, iSelected, 1, szName, ARRAYSIZE(szName));
 						lpstrFileName = private_GetStreamName(hFile, szName);
 						if ( lpstrFileName ) {
                             MessageBox(hDlg, lpstrFileName, NULL, 0);
@@ -130,8 +133,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 						if ( ListView_GetItemCount(hListView) == 0 )
 							break;
 						hStreamMenu = CreatePopupMenu();
-			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   TEXT("Посмотреть"));
-                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("Создать"));
+			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"));
+                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅ"));
                         SetForegroundWindow(hListView);
                         TrackPopupMenu(hStreamMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, p.x, p.y, 0, hListView, NULL);
 			            DestroyMenu(hStreamMenu);
@@ -145,9 +148,9 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 						iSelected = ListView_GetSelectionMark(hListView);
 						if (iSelected >= 0) {
-							TCHAR szName[(MAX_PATH + 64) * sizeof(TCHAR)];
+							TCHAR szName[MAX_PATH + 64];
 
-							ListView_GetItemText(hListView, iSelected, 1, szName, sizeof(szName));
+							ListView_GetItemText(hListView, iSelected, 1, szName, ARRAYSIZE(szName));
 							CreateToolTip(IDC_STREAM_LIST, hDlg, hInstance, szName);
 						}
 					}
@@ -162,7 +165,21 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		  if ( hFile && hFile != INVALID_HANDLE_VALUE ) {
 			  BOOL bResult;
 			  bClear = FALSE;
-			  bResult = GetFileInformationByHandleEx(hFile, FileStreamInfo, pfsi, dwStreamSize);
+			  /* Grow the buffer until the API is satisfied (ERROR_MORE_DATA). */
+			  for (;;) {
+				  bResult = GetFileInformationByHandleEx(hFile, FileStreamInfo, pfsi, dwPfsiSize);
+				  if (bResult)
+					  break;
+				  if (GetLastError() != ERROR_MORE_DATA)
+					  break;
+				  dwPfsiSize *= 2;
+				  LocalFree(pfsi);
+				  pfsi = (PFILE_STREAM_INFO)LocalAlloc(LPTR, dwPfsiSize);
+				  if (!pfsi) {
+					  bResult = FALSE;
+					  break;
+				  }
+			  }
 			  if ( bResult ) {
 					LVITEM	lvItem;
 					TCHAR   szSubBuffer[1024];
@@ -211,7 +228,7 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			  ListView_DeleteAllItems(hListView);
 		  }
 
-          EnableWindow(hCreateButton, hFile != NULL);
+          EnableWindow(hCreateButton, hFile != NULL && hFile != INVALID_HANDLE_VALUE);
 		  break;
 	  }
 	  case WM_RESETFILE_HANDLE: {

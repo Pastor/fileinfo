@@ -29,9 +29,9 @@ static struct tagTabCtrl {
 	HWND                      hWnd;
 	DLGPROC                   pfnProc;
 } g_TabInfoCtrl [] = {
-    { FileBasicInfo, TEXT("Основная"), TEXT("FILE_BASIC_INFO"), NULL, fbi_WindowHandler },
-    { FileStandardInfo, TEXT("Стандартная"), TEXT("FILE_STANDART_INFO"), NULL, fsi_WindowHandler },
-    { FileStreamInfo, TEXT("Потоки"), TEXT("FILE_STREAM_INFO"), NULL, fssi_WindowHandler },
+    { FileBasicInfo, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), TEXT("FILE_BASIC_INFO"), NULL, fbi_WindowHandler },
+    { FileStandardInfo, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), TEXT("FILE_STANDART_INFO"), NULL, fsi_WindowHandler },
+    { FileStreamInfo, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅ"), TEXT("FILE_STREAM_INFO"), NULL, fssi_WindowHandler },
     //{ FileNameInfo, TEXT("NameInfo"), TEXT(""), nullptr, nullptr },
     //{ FileCompressionInfo, TEXT("CompressionInfo"), TEXT(""), nullptr, nullptr },
     //{ FileAttributeTagInfo, TEXT("AttributeTagInfo"), TEXT(""), nullptr, nullptr },
@@ -46,7 +46,7 @@ static struct tagTabCtrl {
     //,
     //{ FileStorageInfo, TEXT("FileStorageInfo"), TEXT(""), nullptr, nullptr },
     //{ FileAlignmentInfo, TEXT("FileAlignmentInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdInfo, TEXT("Идентификатор"), TEXT("FILE_ID_INFO"), NULL, fii_WindowHandler }//,
+    { FileIdInfo, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), TEXT("FILE_ID_INFO"), NULL, fii_WindowHandler }//,
     //{ FileIdExtdDirectoryInfo, TEXT("FileIdExtdDirectoryInfo"), TEXT(""), nullptr, nullptr },
     //{ FileIdExtdDirectoryRestartInfo, TEXT("FileIdExtdDirectoryRestartInfo"), TEXT(""), nullptr, nullptr }
 #endif
@@ -223,13 +223,13 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 		  lpMessage = (LPTSTR)LocalAlloc(LPTR, dwMessageLength);
 		  StringCchPrintf( lpMessage, 
 			  dwMessageLength, 
-			  TEXT("Файл \"%s\" защищен от записи.\r\nСнять защиту и открыть?"), 
+			  TEXT("пїЅпїЅпїЅпїЅ \"%s\" пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ.\r\nпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ?"), 
 			  lpcstrFileName );
-	      iRet = MessageBox(hDlg, lpMessage, TEXT("Предупреждение"), MB_YESNO | MB_ICONQUESTION);
+	      iRet = MessageBox(hDlg, lpMessage, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), MB_YESNO | MB_ICONQUESTION);
 		  if ( iRet != IDYES ) {
 			  LocalFree(lpMessage);
 			  common_FreeSecurityAttributes(&sa);
-			  return FALSE;
+			  return INVALID_HANDLE_VALUE;
 		  }
 		  dwFileAttributes &= ~FILE_ATTRIBUTE_READONLY;
 		  if ( !SetFileAttributes( lpcstrFileName, dwFileAttributes ) ) {
@@ -277,14 +277,14 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch ( uMsg ) {
 		case WM_INITDIALOG: {
 		  hInstance = (HINSTANCE)lParam;
-		  SetWindowText(hDlg, TEXT("Информатор"));
+		  SetWindowText(hDlg, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"));
 		  hEditFile = GetDlgItem(hDlg, IDC_EDITFILE);
 		  hTabCtrl = GetDlgItem(hDlg, IDC_INFOTAB);
           hRestartAsAdministrator = GetDlgItem(hDlg, IDC_RESTART_AS_ADMINISTARTOR);
 		  private_InitButtonImageList(hDlg, hInstance);
 		  private_InitTabInfoCtrl(hTabCtrl, hInstance);
-		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENFILE), hInstance, TEXT("Открыть файл"));
-		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENDIRECTORY), hInstance, TEXT("Открыть директорию"));
+		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENFILE), hInstance, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ"));
+		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENDIRECTORY), hInstance, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"));
 #if (NTDDI_VERSION >= NTDDI_VISTA)
           Button_SetElevationRequiredState(hRestartAsAdministrator, TRUE);
           EnableWindow(hRestartAsAdministrator, !IsElevated());
@@ -313,9 +313,9 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		}
 		case WM_DROPFILES: {
 			HDROP hDrop = (HDROP)wParam;
-            TCHAR szFileName[MAX_PATH * sizeof(TCHAR)];
+            TCHAR szFileName[MAX_PATH];
 
-			DragQueryFile(hDrop, 0, szFileName, sizeof(szFileName));
+			DragQueryFile(hDrop, 0, szFileName, ARRAYSIZE(szFileName));
             if ( hFile && hFile != INVALID_HANDLE_VALUE )
                 CloseHandle(hFile);
 			hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, szFileName, sizeof(szFileName), hInstance, &hTooltip);
@@ -349,11 +349,11 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				    lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
   				
 				    bi.hwndOwner = hDlg;
-				    bi.lpszTitle = TEXT("Выбор директории или файла");
+				    bi.lpszTitle = TEXT("пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ");
 				    bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_RETURNFSANCESTORS;
                     SHGetFolderLocation(hDlg, CSIDL_DRIVES, nullptr, 0, (LPITEMIDLIST *)&bi.pidlRoot);
 				    lpIdList = SHBrowseForFolder(&bi);
-                    if (lpIdList != NULL && SUCCEEDED(lpIdList)) {
+                    if (lpIdList != NULL) {
 #if defined(__cplusplus)
 			            IMalloc *comMalloc;
 
@@ -373,12 +373,12 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			    }
                 case IDC_RESTART_AS_ADMINISTARTOR: {
                     TCHAR szPathBuffer[MAX_PATH * 4];
-                    DWORD dwSize = sizeof(szPathBuffer) * sizeof(TCHAR);
+                    DWORD dwSize = ARRAYSIZE(szPathBuffer);
                     DWORD dwRet;
 
                     dwRet = GetModuleFileName((HMODULE)hInstance, szPathBuffer, dwSize);
                     if (dwRet > 0 && dwRet < dwSize) {
-                        szPathBuffer[dwRet * sizeof(TCHAR)] = (TCHAR)0x00;
+                        szPathBuffer[dwRet] = (TCHAR)0x00;
 
                         ShellExecute(NULL, TEXT("runas"), szPathBuffer, NULL, NULL, SW_SHOWNORMAL);
                         SendMessage(hDlg, WM_CLOSE, (WPARAM)NULL, (LPARAM)NULL);
