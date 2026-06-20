@@ -1,6 +1,9 @@
+#include <commdlg.h>
 #include "common.h"
 #include "file_stream_info.h"
 #include "resource.h"
+
+#pragma comment(lib, "comdlg32.lib")
 
 static struct tagTransferColumn {
 	INT		iId;
@@ -32,6 +35,83 @@ private_InitListView(HWND hListView) {
     ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT );
     ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_GRIDLINES, LVS_EX_GRIDLINES );
     ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_SINGLEROW, LVS_EX_SINGLEROW );
+}
+
+/* Copy the contents of an NTFS stream to a regular file.
+   lpstrFilePath — base file path (e.g. C:\dir\file.txt)
+   lpstrStreamName — stream name as reported by FILE_STREAM_INFO
+                     (e.g. ":mydata:$DATA")
+   Shows a Save File dialog and writes stream bytes to the chosen file. */
+static VOID CALLBACK
+private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
+{
+    TCHAR        szAdsPath[MAX_PATH * 2];
+    TCHAR        szSavePath[MAX_PATH];
+    OPENFILENAME ofn;
+    HANDLE       hStream  = INVALID_HANDLE_VALUE;
+    HANDLE       hOutFile = INVALID_HANDLE_VALUE;
+    BYTE         buf[64 * 1024];
+    DWORD        dwRead, dwWritten;
+    BOOL         bOk = TRUE;
+
+    /* Build full ADS path: "C:\file.txt:streamname:$DATA" */
+    StringCchCopy(szAdsPath, ARRAYSIZE(szAdsPath), lpstrFilePath);
+    StringCchCat (szAdsPath, ARRAYSIZE(szAdsPath), lpstrStreamName);
+
+    /* Show Save-As dialog */
+    ZeroMemory(&ofn, sizeof(ofn));
+    szSavePath[0]     = TEXT('\0');
+    ofn.lStructSize   = sizeof(ofn);
+    ofn.hwndOwner     = hDlg;
+    ofn.lpstrFile     = szSavePath;
+    ofn.nMaxFile      = ARRAYSIZE(szSavePath);
+    ofn.lpstrTitle    = TEXT("Сохранить поток как");
+    ofn.lpstrFilter   = TEXT("Все файлы (*.*)\0*.*\0");
+    ofn.Flags         = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (!GetSaveFileName(&ofn))
+        return; /* user cancelled */
+
+    /* Open stream for reading */
+    hStream = CreateFile(szAdsPath,
+                         GENERIC_READ, FILE_SHARE_READ,
+                         NULL, OPEN_EXISTING,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hStream == INVALID_HANDLE_VALUE) {
+        common_ShowError(hDlg, TEXT("Открытие потока"));
+        return;
+    }
+
+    /* Create destination file */
+    hOutFile = CreateFile(szSavePath,
+                          GENERIC_WRITE, 0,
+                          NULL, CREATE_ALWAYS,
+                          FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hOutFile == INVALID_HANDLE_VALUE) {
+        common_ShowError(hDlg, TEXT("Создание файла"));
+        CloseHandle(hStream);
+        return;
+    }
+
+    /* Copy in chunks */
+    while (bOk
+           && ReadFile(hStream, buf, sizeof(buf), &dwRead, NULL)
+           && dwRead > 0) {
+        bOk = WriteFile(hOutFile, buf, dwRead, &dwWritten, NULL)
+              && (dwWritten == dwRead);
+    }
+
+    if (!bOk)
+        common_ShowError(hDlg, TEXT("Запись файла"));
+
+    CloseHandle(hOutFile);
+    CloseHandle(hStream);
+
+    if (bOk)
+        MessageBox(hDlg,
+                   TEXT("Поток успешно сохранён."),
+                   TEXT("Сохранение"),
+                   MB_OK | MB_ICONINFORMATION);
 }
 
 static LPTSTR CALLBACK
@@ -71,7 +151,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     static HANDLE    hFile = NULL;
     static HWND      hListView = NULL;
     static HWND      hCreateButton = NULL;
-	static HINSTANCE hInstance = NULL;
+    static HINSTANCE hInstance = NULL;
+    static LPTSTR    lpstrFilePath = NULL;
     switch ( uMsg ) {
   	    case WM_INITDIALOG: {
 			hInstance = (HINSTANCE)lParam;
@@ -87,7 +168,6 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				case IDM_VIEW_STREAM: {
 					LPTSTR lpstrFileName;
 					INT iSelected;
-					
 
 					iSelected = ListView_GetSelectionMark(hListView);
 					if ( iSelected >= 0 ) {
@@ -98,6 +178,16 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                             MessageBox(hDlg, lpstrFileName, NULL, 0);
 							LocalFree(lpstrFileName);
 						}
+					}
+					break;
+				}
+				case IDM_SAVE_STREAM: {
+					INT iSelected = ListView_GetSelectionMark(hListView);
+					if (iSelected >= 0 && lpstrFilePath) {
+						TCHAR szStreamName[MAX_PATH + 64];
+						ListView_GetItemText(hListView, iSelected, 1,
+						                    szStreamName, ARRAYSIZE(szStreamName));
+						private_SaveStream(hDlg, lpstrFilePath, szStreamName);
 					}
 					break;
 				}
@@ -133,8 +223,9 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 						if ( ListView_GetItemCount(hListView) == 0 )
 							break;
 						hStreamMenu = CreatePopupMenu();
-			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   TEXT("����������"));
-                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("�������"));
+			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   TEXT("Просмотреть"));
+                        AppendMenu(hStreamMenu, uFlags, IDM_SAVE_STREAM,   TEXT("Сохранить"));
+                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("Создать"));
                         SetForegroundWindow(hListView);
                         TrackPopupMenu(hStreamMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, p.x, p.y, 0, hListView, NULL);
 			            DestroyMenu(hStreamMenu);
@@ -231,13 +322,34 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
           EnableWindow(hCreateButton, hFile != NULL && hFile != INVALID_HANDLE_VALUE);
 		  break;
 	  }
+	  case WM_SETFILE_NAME: {
+		  if (lpstrFilePath) {
+			  LocalFree(lpstrFilePath);
+			  lpstrFilePath = NULL;
+		  }
+		  if (lParam) {
+			  int cch = lstrlen((LPCTSTR)lParam) + 1;
+			  lpstrFilePath = (LPTSTR)LocalAlloc(LPTR, cch * sizeof(TCHAR));
+			  if (lpstrFilePath)
+				  StringCchCopy(lpstrFilePath, cch, (LPCTSTR)lParam);
+		  }
+		  break;
+	  }
 	  case WM_RESETFILE_HANDLE: {
           hFile = NULL;
+		  if (lpstrFilePath) {
+			  LocalFree(lpstrFilePath);
+			  lpstrFilePath = NULL;
+		  }
 		  break;
 	  }
 	  case WM_CLOSE:
 	  case WM_DESTROY: {
 		  LocalFree(pfsi);
+		  if (lpstrFilePath) {
+			  LocalFree(lpstrFilePath);
+			  lpstrFilePath = NULL;
+		  }
 		  break;
 	  }
   }
