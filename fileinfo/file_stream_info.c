@@ -5,6 +5,13 @@
 
 #pragma comment(lib, "comdlg32.lib")
 
+/* Private message: wParam=1 confirm (Enter), wParam=0 cancel (Esc/KillFocus) */
+#define WM_STREAM_NAME_DONE  (WM_APP + 100)
+
+/* State for the inline stream-name editor */
+static WNDPROC pfnOldStreamNameEditProc = NULL;
+static INT     iStreamNameEditItem      = -1;
+
 static struct tagTransferColumn {
 	INT		iId;
 	LPTSTR	lpName;
@@ -37,6 +44,183 @@ private_InitListView(HWND hListView) {
     ListView_SetExtendedListViewStyleEx( hListView, LVS_EX_SINGLEROW, LVS_EX_SINGLEROW );
 }
 
+/* ------------------------------------------------------------------ */
+/* Inline stream-name edit control                                      */
+/* ------------------------------------------------------------------ */
+
+/* Subclassed WndProc: intercepts Enter / Escape / KillFocus. */
+static LRESULT CALLBACK
+StreamNameEditProc(HWND hEdit, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    HWND hDlg = (HWND)(LONG_PTR)GetWindowLongPtr(hEdit, GWLP_USERDATA);
+
+    switch (uMsg) {
+    case WM_KEYDOWN:
+        if (wParam == VK_RETURN) {
+            PostMessage(hDlg, WM_STREAM_NAME_DONE, 1, 0);
+            return 0;
+        }
+        if (wParam == VK_ESCAPE) {
+            PostMessage(hDlg, WM_STREAM_NAME_DONE, 0, 0);
+            return 0;
+        }
+        break;
+    case WM_KILLFOCUS:
+        PostMessage(hDlg, WM_STREAM_NAME_DONE, 0, 0);
+        break;
+    }
+    return CallWindowProc(pfnOldStreamNameEditProc, hEdit, uMsg, wParam, lParam);
+}
+
+/* Destroy the inline edit control safely. */
+static VOID
+private_DestroyStreamEdit(HWND *phEdit)
+{
+    if (*phEdit) {
+        DestroyWindow(*phEdit);
+        *phEdit = NULL;
+        pfnOldStreamNameEditProc = NULL;
+    }
+}
+
+/* Insert a blank row, create an EDIT control over the Name cell,
+   subclass it, and give it focus. */
+static VOID
+private_BeginStreamCreate(HWND hDlg, HWND hListView, HINSTANCE hInst,
+                          HWND *phStreamNameEdit)
+{
+    INT   iCount;
+    RECT  rc;
+    HWND  hEdit;
+    LVITEM lvi;
+
+    if (*phStreamNameEdit)   /* already editing */
+        return;
+
+    iCount = ListView_GetItemCount(hListView);
+
+    ZeroMemory(&lvi, sizeof(lvi));
+    lvi.mask    = LVIF_TEXT;
+    lvi.iItem   = iCount;
+    lvi.pszText = TEXT("");
+    ListView_InsertItem(hListView, &lvi);
+    ListView_SetItemText(hListView, iCount, 1, TEXT(""));
+    ListView_EnsureVisible(hListView, iCount, FALSE);
+
+    /* Position the edit over column 1 of the new row */
+    ListView_GetSubItemRect(hListView, iCount, 1, LVIR_BOUNDS, &rc);
+
+    hEdit = CreateWindowEx(
+        0, WC_EDIT, TEXT(""),
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+        rc.left, rc.top,
+        rc.right  - rc.left,
+        rc.bottom - rc.top,
+        hListView, NULL, hInst, NULL);
+
+    if (!hEdit) {
+        ListView_DeleteItem(hListView, iCount);
+        return;
+    }
+
+    SetWindowLongPtr(hEdit, GWLP_USERDATA, (LONG_PTR)hDlg);
+    pfnOldStreamNameEditProc = (WNDPROC)(LONG_PTR)
+        SetWindowLongPtr(hEdit, GWLP_WNDPROC, (LONG_PTR)StreamNameEditProc);
+
+    iStreamNameEditItem = iCount;
+    *phStreamNameEdit   = hEdit;
+    SetFocus(hEdit);
+}
+
+/* Write file contents to an NTFS alternate data stream.
+   lpstrStreamName is the full stream name as listed in FILE_STREAM_INFO
+   (e.g. ":backup:$DATA").  Shows an Open-file dialog and a confirmation
+   message before writing.  Refreshes the stream list on success. */
+static VOID
+private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
+                         LPCTSTR lpstrStreamName, HANDLE hFile)
+{
+    TCHAR        szSource[MAX_PATH];
+    TCHAR        szAdsPath[MAX_PATH * 2];
+    TCHAR        szConfirm[MAX_PATH * 3];
+    OPENFILENAME ofn;
+    HANDLE       hSrc    = INVALID_HANDLE_VALUE;
+    HANDLE       hStream = INVALID_HANDLE_VALUE;
+    BYTE         buf[64 * 1024];
+    DWORD        dwRead, dwWritten;
+    BOOL         bOk = TRUE;
+
+    /* Select the source file */
+    ZeroMemory(&ofn, sizeof(ofn));
+    szSource[0]       = TEXT('\0');
+    ofn.lStructSize   = sizeof(ofn);
+    ofn.hwndOwner     = hDlg;
+    ofn.lpstrFile     = szSource;
+    ofn.nMaxFile      = ARRAYSIZE(szSource);
+    ofn.lpstrTitle    = TEXT("Выбрать файл для записи в поток");
+    ofn.lpstrFilter   = TEXT("Все файлы (*.*)\0*.*\0");
+    ofn.Flags         = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (!GetOpenFileName(&ofn))
+        return;
+
+    /* Full ADS path */
+    StringCchCopy(szAdsPath, ARRAYSIZE(szAdsPath), lpstrFilePath);
+    StringCchCat (szAdsPath, ARRAYSIZE(szAdsPath), lpstrStreamName);
+
+    /* Confirmation */
+    StringCchPrintf(szConfirm, ARRAYSIZE(szConfirm),
+        TEXT("Записать содержимое файла:\n\"%s\"\n\nв поток:\n\"%s\"\n\n")
+        TEXT("Существующее содержимое потока будет перезаписано."),
+        szSource, lpstrStreamName);
+    if (MessageBox(hDlg, szConfirm, TEXT("Подтверждение"),
+                   MB_YESNO | MB_ICONQUESTION) != IDYES)
+        return;
+
+    /* Open source */
+    hSrc = CreateFile(szSource,
+                      GENERIC_READ, FILE_SHARE_READ,
+                      NULL, OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hSrc == INVALID_HANDLE_VALUE) {
+        common_ShowError(hDlg, TEXT("Открытие файла-источника"));
+        return;
+    }
+
+    /* Open / overwrite the ADS */
+    hStream = CreateFile(szAdsPath,
+                         GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                         NULL, CREATE_ALWAYS,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hStream == INVALID_HANDLE_VALUE) {
+        common_ShowError(hDlg, TEXT("Открытие потока для записи"));
+        CloseHandle(hSrc);
+        return;
+    }
+
+    /* Copy in chunks */
+    while (bOk
+           && ReadFile(hSrc, buf, sizeof(buf), &dwRead, NULL)
+           && dwRead > 0) {
+        bOk = WriteFile(hStream, buf, dwRead, &dwWritten, NULL)
+              && (dwWritten == dwRead);
+    }
+
+    if (!bOk)
+        common_ShowError(hDlg, TEXT("Запись потока"));
+
+    CloseHandle(hStream);
+    CloseHandle(hSrc);
+
+    if (bOk) {
+        MessageBox(hDlg, TEXT("Поток успешно перезаписан."),
+                   TEXT("Успех"), MB_OK | MB_ICONINFORMATION);
+        /* Refresh sizes in the list */
+        SendMessage(hDlg, WM_SETFILE_HANDLE, 0, (LPARAM)hFile);
+    }
+}
+
+/* ------------------------------------------------------------------ */
 /* Copy the contents of an NTFS stream to a regular file.
    lpstrFilePath — base file path (e.g. C:\dir\file.txt)
    lpstrStreamName — stream name as reported by FILE_STREAM_INFO
@@ -153,6 +337,7 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     static HWND      hCreateButton = NULL;
     static HINSTANCE hInstance = NULL;
     static LPTSTR    lpstrFilePath = NULL;
+    static HWND      hStreamNameEdit = NULL;
     switch ( uMsg ) {
   	    case WM_INITDIALOG: {
 			hInstance = (HINSTANCE)lParam;
@@ -191,14 +376,34 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 					}
 					break;
 				}
-                case IDC_CREATE_STREAM:
+                case IDC_CREATE_STREAM: {
+                    /* Button: add blank row + inline name editor */
+                    private_BeginStreamCreate(hDlg, hListView, hInstance,
+                                             &hStreamNameEdit);
+                    break;
+                }
 				case IDM_CREATE_STREAM: {
-					LPTSTR lpstrFileName;
-
-					lpstrFileName = private_GetStreamName(hFile, TEXT(""));
-					if ( lpstrFileName ) {
-						LocalFree(lpstrFileName);
-					}
+                    /* Context menu: write a file's contents to selected stream */
+                    INT iSel = ListView_GetSelectionMark(hListView);
+                    if (iSel < 0 || !lpstrFilePath) {
+                        MessageBox(hDlg,
+                            TEXT("Выберите поток из списка."),
+                            TEXT("Создать поток"), MB_OK | MB_ICONINFORMATION);
+                        break;
+                    }
+                    {
+                        TCHAR szStreamName[MAX_PATH + 64];
+                        ListView_GetItemText(hListView, iSel, 1,
+                                            szStreamName, ARRAYSIZE(szStreamName));
+                        if (szStreamName[0] == TEXT('\0')) {
+                            MessageBox(hDlg,
+                                TEXT("Выберите поток из списка."),
+                                TEXT("Создать поток"), MB_OK | MB_ICONINFORMATION);
+                            break;
+                        }
+                        private_LoadFileToStream(hDlg, lpstrFilePath,
+                                                 szStreamName, hFile);
+                    }
 					break;
 				}
 			}
@@ -250,6 +455,66 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			}
 			break;
 		}
+      case WM_STREAM_NAME_DONE: {
+          /* Posted by StreamNameEditProc when the user presses Enter (wParam=1)
+             or Escape/KillFocus (wParam=0). */
+          if (!hStreamNameEdit)   /* already handled (Enter then KillFocus) */
+              break;
+
+          if (wParam == 1) {
+              /* Confirm: read the name and try to create the stream */
+              TCHAR szName[MAX_PATH];
+              GetWindowText(hStreamNameEdit, szName, ARRAYSIZE(szName));
+
+              private_DestroyStreamEdit(&hStreamNameEdit);
+
+              if (szName[0] == TEXT('\0')) {
+                  MessageBox(hDlg,
+                      TEXT("Имя потока не может быть пустым."),
+                      TEXT("Создать поток"), MB_OK | MB_ICONWARNING);
+                  /* Remove the blank row we inserted */
+                  if (iStreamNameEditItem >= 0) {
+                      ListView_DeleteItem(hListView, iStreamNameEditItem);
+                      iStreamNameEditItem = -1;
+                  }
+                  break;
+              }
+
+              /* Build full ADS path: file + ":" + name + ":$DATA" */
+              if (lpstrFilePath) {
+                  TCHAR szAdsPath[MAX_PATH * 2];
+                  HANDLE hStream;
+                  StringCchCopy(szAdsPath, ARRAYSIZE(szAdsPath), lpstrFilePath);
+                  StringCchCat (szAdsPath, ARRAYSIZE(szAdsPath), TEXT(":"));
+                  StringCchCat (szAdsPath, ARRAYSIZE(szAdsPath), szName);
+                  StringCchCat (szAdsPath, ARRAYSIZE(szAdsPath), TEXT(":$DATA"));
+
+                  hStream = CreateFile(szAdsPath,
+                                       GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                       NULL, CREATE_NEW,
+                                       FILE_ATTRIBUTE_NORMAL, NULL);
+                  if (hStream != INVALID_HANDLE_VALUE) {
+                      CloseHandle(hStream);
+                      /* Refresh the stream list */
+                      SendMessage(hDlg, WM_SETFILE_HANDLE, 0, (LPARAM)hFile);
+                  } else {
+                      common_ShowError(hDlg, TEXT("Создание потока"));
+                      if (iStreamNameEditItem >= 0) {
+                          ListView_DeleteItem(hListView, iStreamNameEditItem);
+                          iStreamNameEditItem = -1;
+                      }
+                  }
+              }
+          } else {
+              /* Cancel */
+              private_DestroyStreamEdit(&hStreamNameEdit);
+              if (iStreamNameEditItem >= 0) {
+                  ListView_DeleteItem(hListView, iStreamNameEditItem);
+                  iStreamNameEditItem = -1;
+              }
+          }
+          break;
+      }
 	  case WM_SETFILE_HANDLE: {
 		  BOOL bClear;
 		  hFile = (HANDLE)lParam;
