@@ -364,18 +364,98 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		case WM_COMMAND: {
 			switch ( LOWORD(wParam) ) {
 				case IDM_VIEW_STREAM: {
-					LPTSTR lpstrFileName;
-					INT iSelected;
-
-					iSelected = ListView_GetSelectionMark(hListView);
-					if ( iSelected >= 0 ) {
-						TCHAR szName[MAX_PATH + 64];
-						ListView_GetItemText(hListView, iSelected, 1, szName, ARRAYSIZE(szName));
-						lpstrFileName = private_GetStreamName(hFile, szName);
-						if ( lpstrFileName ) {
-                            MessageBox(hDlg, lpstrFileName, NULL, 0);
-							LocalFree(lpstrFileName);
+					INT iSelected = ListView_GetSelectionMark(hListView);
+					if (iSelected >= 0 && lpstrFilePath) {
+						TCHAR szStreamName[MAX_PATH + 64];
+						TCHAR szAdsPath[MAX_PATH * 2];
+						HANDLE hStream;
+						BYTE  buf[65536];
+						DWORD dwRead = 0;
+						BOOL  bIsText = FALSE;
+						LPTSTR lpContent = NULL;
+						HWND hViewer;
+						
+						ListView_GetItemText(hListView, iSelected, 1, szStreamName, ARRAYSIZE(szStreamName));
+						StringCchCopy(szAdsPath, ARRAYSIZE(szAdsPath), lpstrFilePath);
+						StringCchCat(szAdsPath, ARRAYSIZE(szAdsPath), szStreamName);
+						
+						hStream = CreateFile(szAdsPath, GENERIC_READ, FILE_SHARE_READ,
+						                    NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+						if (hStream == INVALID_HANDLE_VALUE) {
+							common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_OPEN));
+							break;
 						}
+						ReadFile(hStream, buf, sizeof(buf) - 2, &dwRead, NULL);
+						buf[dwRead] = 0; buf[dwRead + 1] = 0;
+						CloseHandle(hStream);
+						
+						/* Detect UTF-16 LE BOM */
+						if (dwRead >= 2 && buf[0] == 0xFF && buf[1] == 0xFE) {
+							bIsText = TRUE;
+							lpContent = (LPTSTR)(buf + 2);
+						} else {
+							DWORD i2; bIsText = TRUE;
+							for (i2 = 0; i2 < dwRead && bIsText; ++i2) {
+								BYTE bv = buf[i2];
+								if (bv < 0x20 && bv != 0x09 && bv != 0x0A && bv != 0x0D)
+									bIsText = FALSE;
+							}
+						}
+						
+						if (bIsText && !lpContent) {
+							int cch2 = MultiByteToWideChar(CP_UTF8, 0, (LPCSTR)buf, dwRead, NULL, 0) + 1;
+							lpContent = (LPTSTR)HeapAlloc(GetProcessHeap(), 0, cch2 * sizeof(TCHAR));
+							if (lpContent) MultiByteToWideChar(CP_UTF8, 0, (LPCSTR)buf, dwRead, lpContent, cch2);
+						}
+						
+						if (!bIsText) {
+							DWORD nLines = (dwRead + 15) / 16;
+							DWORD cchHex = nLines * 80 + 4;
+							DWORD jh, offset;
+							lpContent = (LPTSTR)HeapAlloc(GetProcessHeap(), 0, cchHex * sizeof(TCHAR));
+							if (lpContent) {
+								LPTSTR p = lpContent; *p = 0;
+								for (offset = 0; offset < dwRead; offset += 16) {
+									DWORD n = ((offset + 16) <= dwRead) ? 16 : (dwRead - offset);
+									DWORD used = (DWORD)(p - lpContent);
+									p += StringCchPrintf(p, cchHex - used, TEXT("%04X  "), offset);
+									for (jh = 0; jh < 16; ++jh) {
+										used = (DWORD)(p - lpContent);
+										if (jh < n) p += StringCchPrintf(p, cchHex-used, TEXT("%02X "), buf[offset+jh]);
+										else { used=(DWORD)(p-lpContent); StringCchPrintf(p,cchHex-used,TEXT("   ")); p+=3; }
+									}
+									*p++ = TEXT(' '); *p++ = TEXT(' ');
+									for (jh = 0; jh < n; ++jh) {
+										BYTE bv = buf[offset+jh];
+										*p++ = (bv >= 0x20 && bv < 0x7F) ? (TCHAR)bv : TEXT('.');
+									}
+									*p++ = TEXT('\r'); *p++ = TEXT('\n');
+								}
+								*p = TEXT('\0');
+							}
+						}
+						
+						/* Show viewer dialog */
+						hViewer = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_STREAM_VIEWER), hDlg, NULL);
+						if (hViewer) {
+							TCHAR szTitle[MAX_PATH + 64];
+							HWND hEdit = GetDlgItem(hViewer, IDC_STREAM_VIEWER_EDIT);
+							HWND hMode = GetDlgItem(hViewer, IDC_STREAM_VIEWER_MODE);
+							StringCchPrintf(szTitle, ARRAYSIZE(szTitle), ResStr(IDS_STREAM_VIEW_TITLE), szStreamName);
+							SetWindowText(hViewer, szTitle);
+							if (hEdit && lpContent) SetWindowText(hEdit, lpContent);
+							if (hMode) SetWindowText(hMode, bIsText ? ResStr(IDS_STREAM_MODE_TEXT) : ResStr(IDS_STREAM_MODE_HEX));
+							ShowWindow(hViewer, SW_SHOW);
+							{ MSG vmsg;
+							  while (IsWindow(hViewer) && GetMessage(&vmsg, NULL, 0, 0)) {
+								if (vmsg.hwnd == hViewer && vmsg.message == WM_COMMAND && LOWORD(vmsg.wParam) == IDCANCEL)
+									DestroyWindow(hViewer);
+								else { TranslateMessage(&vmsg); DispatchMessage(&vmsg); }
+							  }
+							}
+						}
+						if (lpContent && lpContent != (LPTSTR)(buf + 2))
+							HeapFree(GetProcessHeap(), 0, lpContent);
 					}
 					break;
 				}
@@ -386,6 +466,77 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 						ListView_GetItemText(hListView, iSelected, 1,
 						                    szStreamName, ARRAYSIZE(szStreamName));
 						private_SaveStream(hDlg, lpstrFilePath, szStreamName);
+					}
+					break;
+				}
+				case IDM_DELETE_STREAM: {
+					INT iSel = ListView_GetSelectionMark(hListView);
+					if (iSel >= 0 && lpstrFilePath) {
+						TCHAR szStreamName[MAX_PATH + 64];
+						TCHAR szAdsPath[MAX_PATH * 2];
+						LPTSTR szConfirm = NULL;
+						int nDelChars;
+						ListView_GetItemText(hListView, iSel, 1, szStreamName, ARRAYSIZE(szStreamName));
+						nDelChars = _scwprintf(ResStr(IDS_STREAM_DEL_FMT), szStreamName) + 1;
+						szConfirm = (LPTSTR)HeapAlloc(GetProcessHeap(), 0, (size_t)nDelChars * sizeof(TCHAR));
+						if (szConfirm) swprintf_s(szConfirm, (size_t)nDelChars, ResStr(IDS_STREAM_DEL_FMT), szStreamName);
+						if (!szConfirm || MessageBox(hDlg, szConfirm, ResStr(IDS_STREAM_DEL_TITLE), MB_YESNO | MB_ICONWARNING) == IDYES) {
+							StringCchCopy(szAdsPath, ARRAYSIZE(szAdsPath), lpstrFilePath);
+							StringCchCat(szAdsPath, ARRAYSIZE(szAdsPath), szStreamName);
+							if (DeleteFile(szAdsPath)) {
+								MessageBox(hDlg, ResStr(IDS_STREAM_DEL_OK), ResStr(IDS_STREAM_DEL_OK_TITLE), MB_OK | MB_ICONINFORMATION);
+								SendMessage(hDlg, WM_SETFILE_HANDLE, 0, (LPARAM)hFile);
+							} else {
+								common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_OPEN));
+							}
+						}
+						HeapFree(GetProcessHeap(), 0, szConfirm);
+					}
+					break;
+				}
+				case IDM_COPY_SELECTION: {
+					INT nItems = ListView_GetItemCount(hListView);
+					INT nCols  = 4;
+					INT ci, cj;
+					HGLOBAL hMem = NULL;
+					DWORD cch = 0;
+					for (ci = 0; ci < nItems; ++ci) {
+						if (ListView_GetItemState(hListView, ci, LVIS_SELECTED) & LVIS_SELECTED) {
+							for (cj = 0; cj < nCols; ++cj) {
+								TCHAR tmp[1024]; tmp[0]=0;
+								ListView_GetItemText(hListView, ci, cj, tmp, ARRAYSIZE(tmp));
+								cch += (DWORD)lstrlen(tmp) + 2;
+							}
+							cch += 3;
+						}
+					}
+					if (cch == 0) break;
+					cch += 4;
+					hMem = GlobalAlloc(GMEM_MOVEABLE, cch * sizeof(TCHAR));
+					if (!hMem) break;
+					{ LPTSTR p = (LPTSTR)GlobalLock(hMem);
+					  if (p) {
+						p[0] = 0;
+						for (ci = 0; ci < nItems; ++ci) {
+							if (ListView_GetItemState(hListView, ci, LVIS_SELECTED) & LVIS_SELECTED) {
+								for (cj = 0; cj < nCols; ++cj) {
+									TCHAR tmp[1024]; tmp[0]=0;
+									ListView_GetItemText(hListView, ci, cj, tmp, ARRAYSIZE(tmp));
+									StringCchCat(p, cch, tmp);
+									if (cj < nCols-1) StringCchCat(p, cch, TEXT("\t"));
+								}
+								StringCchCat(p, cch, TEXT("\r\n"));
+							}
+						}
+						GlobalUnlock(hMem);
+					  }
+					}
+					if (OpenClipboard(hDlg)) {
+						EmptyClipboard();
+						SetClipboardData(CF_UNICODETEXT, hMem);
+						CloseClipboard();
+					} else {
+						GlobalFree(hMem);
 					}
 					break;
 				}
@@ -441,9 +592,12 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 						if ( ListView_GetItemCount(hListView) == 0 )
 							break;
 						hStreamMenu = CreatePopupMenu();
-			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   ResStr(IDS_STREAM_MENU_VIEW));
-                        AppendMenu(hStreamMenu, uFlags, IDM_SAVE_STREAM,   ResStr(IDS_STREAM_MENU_SAVE));
-                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, ResStr(IDS_STREAM_MENU_CREATE));
+                        AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,    ResStr(IDS_STREAM_MENU_VIEW));
+                        AppendMenu(hStreamMenu, uFlags, IDM_SAVE_STREAM,    ResStr(IDS_STREAM_MENU_SAVE));
+                        AppendMenu(hStreamMenu, uFlags, IDM_DELETE_STREAM,  ResStr(IDS_STREAM_MENU_DELETE));
+                        AppendMenu(hStreamMenu, uFlags, IDM_COPY_SELECTION, ResStr(IDS_MENU_COPY));
+                        AppendMenu(hStreamMenu, MF_SEPARATOR, 0, NULL);
+                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING,  IDM_CREATE_STREAM, ResStr(IDS_STREAM_MENU_CREATE));
                         SetForegroundWindow(hListView);
                         TrackPopupMenu(hStreamMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, p.x, p.y, 0, hListView, NULL);
 			            DestroyMenu(hStreamMenu);
@@ -468,6 +622,18 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			}
 			break;
 		}
+      case WM_KEYDOWN: {
+          if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+              if (wParam == 0x41) { /* Ctrl+A: select all */
+                  INT n = ListView_GetItemCount(hListView), ka;
+                  for (ka = 0; ka < n; ++ka)
+                      ListView_SetItemState(hListView, ka, LVIS_SELECTED, LVIS_SELECTED);
+              } else if (wParam == 0x43) { /* Ctrl+C: copy */
+                  SendMessage(hDlg, WM_COMMAND, IDM_COPY_SELECTION, 0);
+              }
+          }
+          break;
+      }
       case WM_STREAM_NAME_DONE: {
           /* Posted by StreamNameEditProc when the user presses Enter (wParam=1)
              or Escape/KillFocus (wParam=0). */

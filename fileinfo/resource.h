@@ -50,6 +50,13 @@
 #define IDC_EXIF_STATUS                 1084
 #define IDM_SAVE_STREAM                 1085
 #define IDC_SHELL_INTEGRATE             1086
+#define IDM_DELETE_STREAM               1087
+#define IDM_COPY_SELECTION              1088
+#define IDM_COMPARE_FILE                1089
+#define IDC_STREAM_VIEWER_EDIT          1090
+#define IDC_STREAM_VIEWER_MODE          1091
+#define IDD_STREAM_VIEWER               200
+#define ID_RECENT_FILE_BASE             40001
 
 // String table IDs
 #define IDS_ERROR_TITLE          2000
@@ -108,6 +115,31 @@
 #define IDS_EXIF_ERR_READ        2066
 #define IDS_EXIF_NO_SUPPORT      2067
 #define IDS_EXIF_NO_SUPPORT_HINT 2068
+#define IDS_STREAM_MENU_DELETE   2070
+#define IDS_STREAM_DEL_FMT       2071
+#define IDS_STREAM_DEL_TITLE     2072
+#define IDS_STREAM_DEL_OK        2073
+#define IDS_STREAM_DEL_OK_TITLE  2074
+#define IDS_STREAM_VIEW_TITLE    2075
+#define IDS_STREAM_MODE_TEXT     2076
+#define IDS_STREAM_MODE_HEX      2077
+#define IDS_MENU_COPY            2078
+#define IDS_EXIF_EDIT_TITLE      2079
+#define IDS_EXIF_EDIT_LABEL      2080
+#define IDS_EXIF_SAVE_OK         2081
+#define IDS_EXIF_SAVE_OK_TITLE   2082
+#define IDS_EXIF_SAVE_ERR        2083
+#define IDS_EXIF_READONLY        2084
+#define IDS_COMPARE_TITLE        2085
+#define IDS_COMPARE_RESULT       2086
+#define IDS_COMPARE_EQUAL        2087
+#define IDS_COMPARE_WITH         2088
+#define IDS_RECENT_SEP           2089
+#define IDS_ADD_COMPR_FMT        2090
+#define IDS_ADD_STORAGE_FMT      2091
+#define IDS_ADD_ALIGN_FMT        2092
+#define IDS_ADD_REPARSE_FMT      2093
+#define IDS_STREAM_VIEWER_CLOSE  2094
 
 // Next default values for new objects
 // 

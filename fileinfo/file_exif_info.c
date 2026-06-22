@@ -21,7 +21,10 @@
 
 #ifdef EXIV2_AVAILABLE
 #include <string>
+#include <vector>
 #include <exiv2/exiv2.hpp>
+
+static std::vector<std::string> g_ExifKeys;
 #endif
 
 /* ------------------------------------------------------------------ */
@@ -73,6 +76,9 @@ static void
 private_ClearList(HWND hListView)
 {
     ListView_DeleteAllItems(hListView);
+#ifdef EXIV2_AVAILABLE
+    g_ExifKeys.clear();
+#endif
 }
 
 /* ------------------------------------------------------------------ */
@@ -85,10 +91,11 @@ private_AddRow(HWND hListView, int nIndex, LPCTSTR lpNum, LPCTSTR lpTag,
 {
     LVITEM lvi;
     ZeroMemory(&lvi, sizeof(lvi));
-    lvi.mask       = LVIF_TEXT;
+    lvi.mask       = LVIF_TEXT | LVIF_PARAM;
     lvi.iItem      = nIndex;
     lvi.iSubItem   = 0;
     lvi.pszText    = (LPTSTR)lpNum;
+    lvi.lParam     = (LPARAM)nIndex;
     ListView_InsertItem(hListView, &lvi);
     ListView_SetItemText(hListView, nIndex, 1, (LPTSTR)lpTag);
     ListView_SetItemText(hListView, nIndex, 2, (LPTSTR)lpType);
@@ -149,6 +156,7 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
             private_Utf8ToWide(md.tagLabel(),         szTag,   ARRAYSIZE(szTag));
             private_Utf8ToWide(md.typeName(),         szType,  ARRAYSIZE(szType));
             private_Utf8ToWide(md.value().toString(), szValue, ARRAYSIZE(szValue));
+            g_ExifKeys.push_back(md.key());
             private_AddRow(hListView, nIndex, szNum, szTag, szType, szValue);
             ++nIndex;
         }
@@ -160,6 +168,7 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
             private_Utf8ToWide(md.tagLabel(),         szTag,   ARRAYSIZE(szTag));
             private_Utf8ToWide(md.typeName(),         szType,  ARRAYSIZE(szType));
             private_Utf8ToWide(md.value().toString(), szValue, ARRAYSIZE(szValue));
+            g_ExifKeys.push_back(md.key());
             private_AddRow(hListView, nIndex, szNum, szTag, szType, szValue);
             ++nIndex;
         }
@@ -171,6 +180,7 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
             private_Utf8ToWide(md.tagLabel(),         szTag,   ARRAYSIZE(szTag));
             private_Utf8ToWide(md.typeName(),         szType,  ARRAYSIZE(szType));
             private_Utf8ToWide(md.value().toString(), szValue, ARRAYSIZE(szValue));
+            g_ExifKeys.push_back(md.key());
             private_AddRow(hListView, nIndex, szNum, szTag, szType, szValue);
             ++nIndex;
         }
@@ -239,6 +249,158 @@ fxi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_SIZE: {
         if (hListView) {
             private_ResizeListView(hDlg, hListView);
+        }
+        break;
+    }
+
+    case WM_COMMAND: {
+        if (LOWORD(wParam) == IDM_COPY_SELECTION && hListView) {
+            INT nItems = ListView_GetItemCount(hListView);
+            INT nCols  = 4, ci, cj;
+            HGLOBAL hMem;
+            DWORD cch = 0;
+            for (ci = 0; ci < nItems; ++ci) {
+                if (ListView_GetItemState(hListView, ci, LVIS_SELECTED) & LVIS_SELECTED) {
+                    for (cj = 0; cj < nCols; ++cj) {
+                        TCHAR tmp[1024]; tmp[0]=0;
+                        ListView_GetItemText(hListView, ci, cj, tmp, ARRAYSIZE(tmp));
+                        cch += (DWORD)lstrlen(tmp) + 2;
+                    }
+                    cch += 3;
+                }
+            }
+            if (cch > 0) {
+                cch += 4;
+                hMem = GlobalAlloc(GMEM_MOVEABLE, cch * sizeof(TCHAR));
+                if (hMem) {
+                    LPTSTR p = (LPTSTR)GlobalLock(hMem);
+                    if (p) {
+                        p[0] = 0;
+                        for (ci = 0; ci < nItems; ++ci) {
+                            if (ListView_GetItemState(hListView, ci, LVIS_SELECTED) & LVIS_SELECTED) {
+                                for (cj = 0; cj < nCols; ++cj) {
+                                    TCHAR tmp[1024]; tmp[0]=0;
+                                    ListView_GetItemText(hListView, ci, cj, tmp, ARRAYSIZE(tmp));
+                                    StringCchCat(p, cch, tmp);
+                                    if (cj < nCols-1) StringCchCat(p, cch, TEXT("\t"));
+                                }
+                                StringCchCat(p, cch, TEXT("\r\n"));
+                            }
+                        }
+                        GlobalUnlock(hMem);
+                    }
+                    if (OpenClipboard(hDlg)) {
+                        EmptyClipboard();
+                        SetClipboardData(CF_UNICODETEXT, hMem);
+                        CloseClipboard();
+                    } else {
+                        GlobalFree(hMem);
+                    }
+                }
+            }
+        }
+        break;
+    }
+
+    case WM_KEYDOWN: {
+        if (hListView && (GetAsyncKeyState(VK_CONTROL) & 0x8000)) {
+            if (wParam == 0x41) {
+                INT n = ListView_GetItemCount(hListView), ka;
+                for (ka = 0; ka < n; ++ka)
+                    ListView_SetItemState(hListView, ka, LVIS_SELECTED, LVIS_SELECTED);
+            } else if (wParam == 0x43) {
+                SendMessage(hDlg, WM_COMMAND, IDM_COPY_SELECTION, 0);
+            }
+        }
+        break;
+    }
+
+    case WM_NOTIFY: {
+        LPNMHDR hdr = (LPNMHDR)lParam;
+        if (hdr->idFrom == IDC_EXIF_LIST) {
+            if (hdr->code == NM_RCLICK) {
+                HMENU hMenu;
+                POINT pt;
+                BOOL bSel = ListView_GetSelectedCount(hListView) != 0;
+                UINT uF = MF_STRING | (bSel ? 0U : MF_GRAYED);
+                GetCursorPos(&pt);
+                hMenu = CreatePopupMenu();
+                AppendMenu(hMenu, uF, IDM_COPY_SELECTION, ResStr(IDS_MENU_COPY));
+                SetForegroundWindow(hListView);
+                TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_BOTTOMALIGN, pt.x, pt.y, 0, hListView, NULL);
+                DestroyMenu(hMenu);
+            }
+#ifdef EXIV2_AVAILABLE
+            else if (hdr->code == NM_DBLCLK && lpstrFileName) {
+                LVITEM lvi2;
+                INT iSel = ListView_GetSelectionMark(hListView);
+                if (iSel >= 0) {
+                    ZeroMemory(&lvi2, sizeof(lvi2));
+                    lvi2.mask  = LVIF_PARAM;
+                    lvi2.iItem = iSel;
+                    ListView_GetItem(hListView, &lvi2);
+                    { INT keyIdx = (INT)lvi2.lParam;
+                      if (keyIdx >= 0 && keyIdx < (INT)g_ExifKeys.size()) {
+                        std::string key = g_ExifKeys[keyIdx];
+                        TCHAR szCurVal[1024], szNewVal[1024];
+                        RECT rcItem;
+                        POINT ptItem = {0, 0};
+                        HWND hOverEdit;
+                        szCurVal[0] = 0;
+                        ListView_GetItemText(hListView, iSel, 3, szCurVal, ARRAYSIZE(szCurVal));
+                        ListView_GetSubItemRect(hListView, iSel, 3, LVIR_BOUNDS, &rcItem);
+                        ptItem.x = rcItem.left; ptItem.y = rcItem.top;
+                        ClientToScreen(hListView, &ptItem);
+                        hOverEdit = CreateWindowEx(WS_EX_TOPMOST, WC_EDIT, szCurVal,
+                            WS_POPUP | WS_BORDER | WS_VISIBLE | ES_AUTOHSCROLL,
+                            ptItem.x, ptItem.y,
+                            (rcItem.right > rcItem.left) ? rcItem.right - rcItem.left : 200,
+                            (rcItem.bottom > rcItem.top) ? rcItem.bottom - rcItem.top + 2 : 22,
+                            hDlg, NULL, (HINSTANCE)GetWindowLongPtr(hDlg, GWLP_HINSTANCE), NULL);
+                        if (hOverEdit) {
+                            MSG emsg;
+                            BOOL bOK = FALSE;
+                            szNewVal[0] = 0;
+                            SendMessage(hOverEdit, WM_SETFONT, (WPARAM)SendMessage(hListView, WM_GETFONT, 0, 0), TRUE);
+                            SendMessage(hOverEdit, EM_SETSEL, 0, -1);
+                            SetFocus(hOverEdit);
+                            while (IsWindow(hOverEdit)) {
+                                if (!GetMessage(&emsg, NULL, 0, 0)) break;
+                                if (emsg.hwnd == hOverEdit && emsg.message == WM_KEYDOWN) {
+                                    if (emsg.wParam == VK_RETURN) { GetWindowText(hOverEdit, szNewVal, ARRAYSIZE(szNewVal)); bOK = TRUE; DestroyWindow(hOverEdit); break; }
+                                    if (emsg.wParam == VK_ESCAPE) { DestroyWindow(hOverEdit); break; }
+                                }
+                                TranslateMessage(&emsg); DispatchMessage(&emsg);
+                            }
+                            if (bOK) {
+                                try {
+                                    std::string utf8Path = private_WideToUtf8(lpstrFileName);
+                                    Exiv2::Image::UniquePtr img = Exiv2::ImageFactory::open(utf8Path);
+                                    img->readMetadata();
+                                    int cchV = WideCharToMultiByte(CP_UTF8, 0, szNewVal, -1, NULL, 0, NULL, NULL);
+                                    std::string utf8Val(cchV > 0 ? cchV : 1, 0);
+                                    WideCharToMultiByte(CP_UTF8, 0, szNewVal, -1, &utf8Val[0], cchV, NULL, NULL);
+                                    utf8Val.resize(cchV > 0 ? cchV - 1 : 0);
+                                    Exiv2::ExifData& ed = img->exifData();
+                                    auto it = ed.findKey(Exiv2::ExifKey(key));
+                                    if (it != ed.end()) {
+                                        it->setValue(utf8Val);
+                                        img->writeMetadata();
+                                        private_LoadExif(hDlg, hListView, lpstrFileName);
+                                        MessageBox(hDlg, ResStr(IDS_EXIF_SAVE_OK), ResStr(IDS_EXIF_SAVE_OK_TITLE), MB_OK | MB_ICONINFORMATION);
+                                    } else {
+                                        MessageBox(hDlg, ResStr(IDS_EXIF_READONLY), ResStr(IDS_EXIF_SAVE_OK_TITLE), MB_OK | MB_ICONWARNING);
+                                    }
+                                } catch (...) {
+                                    MessageBox(hDlg, ResStr(IDS_EXIF_SAVE_ERR), ResStr(IDS_EXIF_SAVE_OK_TITLE), MB_OK | MB_ICONERROR);
+                                }
+                            }
+                        }
+                      }
+                    }
+                }
+            }
+#endif
         }
         break;
     }

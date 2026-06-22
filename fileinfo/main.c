@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <ole2.h>
 #include <commctrl.h>
 #include <shlobj.h>
 #include <strsafe.h>
@@ -11,6 +12,8 @@
 #include "resource.h"
 
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "advapi32.lib")
 
 static struct tagButtonCtrl {
@@ -53,6 +56,28 @@ static struct tagTabCtrl {
     ,{ MaximumFileInfoByHandleClass, IDS_TAB_EXIF, TEXT("FILE_EXIF_INFO"), NULL, fxi_WindowHandler }
 };
 
+
+/* ---------- Recent files (task #8) --------------------------------- */
+#define RECENT_MAX      10
+#define ID_RECENT_BASE  (ID_RECENT_FILE_BASE)
+static const TCHAR g_szRecentKey[] = TEXT("Software\\FileInfo\\RecentFiles");
+
+static VOID private_AddRecentFile(LPCTSTR lpszPath);
+static VOID private_RebuildRecentMenu(HWND hDlg);
+static VOID private_OpenRecentFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile,
+    HANDLE *phFile, LPTSTR *plpstrFileName, DWORD *pdwLen,
+    HINSTANCE hInst, HWND *phTooltip, UINT uRecentIdx);
+
+/* ---------- Long path helper (task #6) ------------------------------ */
+static VOID
+private_MakeLongPath(LPCTSTR lpszIn, LPTSTR lpszOut, DWORD cchOut)
+{
+    if (lstrlen(lpszIn) >= MAX_PATH && lpszIn[0] != TEXT('\\')) {
+        StringCchPrintf(lpszOut, cchOut, TEXT("\\\\?\\%s"), lpszIn);
+    } else {
+        StringCchCopy(lpszOut, cchOut, lpszIn);
+    }
+}
 
 static const TCHAR g_szShellKey[]    = TEXT("Software\\Classes\\*\\shell\\fileinfo");
 static const TCHAR g_szShellCmdKey[] = TEXT("Software\\Classes\\*\\shell\\fileinfo\\command");
@@ -275,6 +300,42 @@ CreateToolTipForRect(HWND hwndParent, HINSTANCE hInstance, LPCTSTR lpstrText) {
 		return hwndTT;
 }
 
+/* IDropTarget -- OLE drag-drop incl. taskbar (task #7) */
+class CDropTarget : public IDropTarget {
+public:
+    HWND m_hWnd;
+    LONG m_cRef;
+    CDropTarget() : m_hWnd(NULL), m_cRef(1) {}
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void **ppv) override {
+        if (riid == __uuidof(IUnknown) || riid == __uuidof(IDropTarget)) {
+            *ppv = this; AddRef(); return S_OK;
+        }
+        *ppv = nullptr; return E_NOINTERFACE;
+    }
+    ULONG STDMETHODCALLTYPE AddRef()  override { return InterlockedIncrement(&m_cRef); }
+    ULONG STDMETHODCALLTYPE Release() override { return InterlockedDecrement(&m_cRef); }
+    HRESULT STDMETHODCALLTYPE DragEnter(IDataObject*, DWORD, POINTL, DWORD *pe) override
+        { *pe = DROPEFFECT_COPY; return S_OK; }
+    HRESULT STDMETHODCALLTYPE DragOver(DWORD, POINTL, DWORD *pe) override
+        { *pe = DROPEFFECT_COPY; return S_OK; }
+    HRESULT STDMETHODCALLTYPE DragLeave() override { return S_OK; }
+    HRESULT STDMETHODCALLTYPE Drop(IDataObject *pDO, DWORD, POINTL, DWORD *pe) override {
+        FORMATETC fe = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+        STGMEDIUM stg;
+        *pe = DROPEFFECT_NONE;
+        if (SUCCEEDED(pDO->GetData(&fe, &stg))) {
+            HDROP hDrop = (HDROP)GlobalLock(stg.hGlobal);
+            if (hDrop) {
+                PostMessage(m_hWnd, WM_DROPFILES, (WPARAM)hDrop, 0);
+                GlobalUnlock(stg.hGlobal);
+                *pe = DROPEFFECT_COPY;
+            }
+        }
+        return S_OK;
+    }
+};
+static CDropTarget g_DropTarget;
+
 static VOID CALLBACK
 private_SetFileHandle(HWND hDlg, HWND hTabCtrl, HANDLE hFile, LPCTSTR lpcstrFileName) {
 	int iCurTab;
@@ -374,6 +435,169 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
   return hFile;
 }
 
+/* ---------- Recent files implementation (task #8) ------------------- */
+
+static VOID
+private_AddRecentFile(LPCTSTR lpszPath)
+{
+    HKEY  hKey;
+    TCHAR szExisting[MAX_PATH * 4];
+    DWORD cb, i;
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, g_szRecentKey, 0, NULL,
+            REG_OPTION_NON_VOLATILE, KEY_READ | KEY_WRITE, NULL, &hKey, NULL) != ERROR_SUCCESS)
+        return;
+    for (i = RECENT_MAX - 1; i > 0; --i) {
+        TCHAR szSrc[8], szDst[8];
+        StringCchPrintf(szSrc, ARRAYSIZE(szSrc), TEXT("%u"), i - 1);
+        StringCchPrintf(szDst, ARRAYSIZE(szDst), TEXT("%u"), i);
+        cb = sizeof(szExisting);
+        if (RegQueryValueEx(hKey, szSrc, NULL, NULL, (LPBYTE)szExisting, &cb) == ERROR_SUCCESS)
+            RegSetValueEx(hKey, szDst, 0, REG_SZ, (LPBYTE)szExisting, cb);
+        else
+            RegDeleteValue(hKey, szDst);
+    }
+    RegSetValueEx(hKey, TEXT("0"), 0, REG_SZ, (LPBYTE)lpszPath,
+                  (lstrlen(lpszPath) + 1) * sizeof(TCHAR));
+    RegCloseKey(hKey);
+}
+
+static VOID
+private_RebuildRecentMenu(HWND hDlg)
+{
+    HMENU hSys = GetSystemMenu(hDlg, FALSE);
+    HKEY  hKey;
+    UINT  i;
+    for (i = 0; i < RECENT_MAX; ++i)
+        RemoveMenu(hSys, ID_RECENT_BASE + i, MF_BYCOMMAND);
+    RemoveMenu(hSys, ID_RECENT_BASE - 1, MF_BYCOMMAND);
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, g_szRecentKey, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
+        return;
+    AppendMenu(hSys, MF_SEPARATOR, ID_RECENT_BASE - 1, NULL);
+    for (i = 0; i < RECENT_MAX; ++i) {
+        TCHAR szName[8], szPath[MAX_PATH * 4], szLabel[MAX_PATH * 4 + 4];
+        DWORD cb = sizeof(szPath);
+        StringCchPrintf(szName, ARRAYSIZE(szName), TEXT("%u"), i);
+        if (RegQueryValueEx(hKey, szName, NULL, NULL, (LPBYTE)szPath, &cb) != ERROR_SUCCESS)
+            break;
+        StringCchPrintf(szLabel, ARRAYSIZE(szLabel), TEXT("&%u  %s"), (i + 1) % 10, szPath);
+        AppendMenu(hSys, MF_STRING, ID_RECENT_BASE + i, szLabel);
+    }
+    RegCloseKey(hKey);
+}
+
+static VOID
+private_OpenRecentFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile,
+    HANDLE *phFile, LPTSTR *plpstrFileName, DWORD *pdwLen,
+    HINSTANCE hInst, HWND *phTooltip, UINT uRecentIdx)
+{
+    HKEY  hKey;
+    TCHAR szPath[MAX_PATH * 4], szName[8];
+    DWORD cb = sizeof(szPath);
+    StringCchPrintf(szName, ARRAYSIZE(szName), TEXT("%u"), uRecentIdx);
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, g_szRecentKey, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
+        return;
+    if (RegQueryValueEx(hKey, szName, NULL, NULL, (LPBYTE)szPath, &cb) == ERROR_SUCCESS) {
+        if (*phFile && *phFile != INVALID_HANDLE_VALUE) CloseHandle(*phFile);
+        *phFile = INVALID_HANDLE_VALUE;
+        *pdwLen = (lstrlen(szPath) + 1) * sizeof(TCHAR) + 1024;
+        if (*plpstrFileName) LocalFree(*plpstrFileName);
+        *plpstrFileName = (LPTSTR)LocalAlloc(LPTR, *pdwLen);
+        if (*plpstrFileName) {
+            StringCchCopy(*plpstrFileName, *pdwLen / sizeof(TCHAR), szPath);
+            private_EnumerateStream(*plpstrFileName);
+            *phFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, *plpstrFileName,
+                                       *pdwLen, hInst, phTooltip);
+            if (*phFile != INVALID_HANDLE_VALUE) {
+                private_AddRecentFile(szPath);
+                private_RebuildRecentMenu(hDlg);
+            }
+        }
+    }
+    RegCloseKey(hKey);
+}
+
+/* ---------- File comparison (task #9) ------------------------------- */
+
+static VOID
+private_CompareFiles(HWND hDlg, HINSTANCE hInst, LPCTSTR lpszFile1)
+{
+    IFileOpenDialog *pDlg2 = nullptr;
+    if (!lpszFile1) return;
+    if (SUCCEEDED(CoCreateInstance(__uuidof(FileOpenDialog), nullptr,
+                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg2)))) {
+        DWORD dwOpts;
+        pDlg2->GetOptions(&dwOpts);
+        pDlg2->SetOptions(
+            dwOpts | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST | FOS_DONTADDTORECENT);
+        pDlg2->SetTitle(ResStr(IDS_COMPARE_WITH));
+        if (SUCCEEDED(pDlg2->Show(hDlg))) {
+            IShellItem *pItem2 = nullptr;
+            if (SUCCEEDED(pDlg2->GetResult(&pItem2))) {
+                LPWSTR pszPath2 = nullptr;
+                if (SUCCEEDED(pItem2->GetDisplayName(SIGDN_FILESYSPATH, &pszPath2))) {
+                    FILE_BASIC_INFO fbi1, fbi2;
+                    FILE_STANDARD_INFO fsi1, fsi2;
+                    HANDLE h1, h2;
+                    TCHAR szResult[4096];
+                    szResult[0] = 0;
+                    h1 = CreateFile(lpszFile1, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE,
+                                    NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+                    h2 = CreateFile(pszPath2, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE,
+                                    NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+                    if (h1 != INVALID_HANDLE_VALUE && h2 != INVALID_HANDLE_VALUE) {
+                        ZeroMemory(&fbi1, sizeof(fbi1)); ZeroMemory(&fbi2, sizeof(fbi2));
+                        ZeroMemory(&fsi1, sizeof(fsi1)); ZeroMemory(&fsi2, sizeof(fsi2));
+                        GetFileInformationByHandleEx(h1, FileBasicInfo,    &fbi1, sizeof(fbi1));
+                        GetFileInformationByHandleEx(h2, FileBasicInfo,    &fbi2, sizeof(fbi2));
+                        GetFileInformationByHandleEx(h1, FileStandardInfo, &fsi1, sizeof(fsi1));
+                        GetFileInformationByHandleEx(h2, FileStandardInfo, &fsi2, sizeof(fsi2));
+                        if (fsi1.EndOfFile.QuadPart != fsi2.EndOfFile.QuadPart) {
+                            TCHAR szLine[512];
+                            StringCchPrintf(szLine, ARRAYSIZE(szLine),
+                                TEXT("Size: %lld  vs  %lld\r\n"),
+                                fsi1.EndOfFile.QuadPart, fsi2.EndOfFile.QuadPart);
+                            StringCchCat(szResult, ARRAYSIZE(szResult), szLine);
+                        }
+                        if (fbi1.FileAttributes != fbi2.FileAttributes) {
+                            TCHAR szLine[256];
+                            StringCchPrintf(szLine, ARRAYSIZE(szLine),
+                                TEXT("Attributes: 0x%X  vs  0x%X\r\n"),
+                                fbi1.FileAttributes, fbi2.FileAttributes);
+                            StringCchCat(szResult, ARRAYSIZE(szResult), szLine);
+                        }
+                        if (fbi1.LastWriteTime.QuadPart != fbi2.LastWriteTime.QuadPart)
+                            StringCchCat(szResult, ARRAYSIZE(szResult), TEXT("LastWriteTime: differs\r\n"));
+                        if (fbi1.CreationTime.QuadPart != fbi2.CreationTime.QuadPart)
+                            StringCchCat(szResult, ARRAYSIZE(szResult), TEXT("CreationTime: differs\r\n"));
+                        if (fsi1.NumberOfLinks != fsi2.NumberOfLinks) {
+                            TCHAR szLine[256];
+                            StringCchPrintf(szLine, ARRAYSIZE(szLine),
+                                TEXT("HardLinks: %u  vs  %u\r\n"),
+                                fsi1.NumberOfLinks, fsi2.NumberOfLinks);
+                            StringCchCat(szResult, ARRAYSIZE(szResult), szLine);
+                        }
+                    }
+                    if (h1 != INVALID_HANDLE_VALUE) CloseHandle(h1);
+                    if (h2 != INVALID_HANDLE_VALUE) CloseHandle(h2);
+                    if (szResult[0] == 0) {
+                        MessageBox(hDlg, ResStr(IDS_COMPARE_EQUAL), ResStr(IDS_COMPARE_TITLE), MB_OK | MB_ICONINFORMATION);
+                    } else {
+                        LPTSTR szMsg = NULL;
+                        int nChars = _scwprintf(ResStr(IDS_COMPARE_RESULT), szResult) + 1;
+                        szMsg = (LPTSTR)HeapAlloc(GetProcessHeap(), 0, nChars * sizeof(TCHAR));
+                        if (szMsg) swprintf_s(szMsg, nChars, ResStr(IDS_COMPARE_RESULT), szResult);
+                        MessageBox(hDlg, szMsg ? szMsg : szResult, ResStr(IDS_COMPARE_TITLE), MB_OK | MB_ICONINFORMATION);
+                        HeapFree(GetProcessHeap(), 0, szMsg);
+                    }
+                    CoTaskMemFree(pszPath2);
+                }
+                pItem2->Release();
+            }
+        }
+        pDlg2->Release();
+    }
+}
+
 INT_PTR CALLBACK
 MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     static HINSTANCE hInstance = NULL;
@@ -418,6 +642,16 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
               }
           }
 		  private_RestoreWindowPos(hDlg);
+		  /* Recent files menu (task #8) */
+		  private_RebuildRecentMenu(hDlg);
+		  /* OLE drag-drop (task #7) */
+		  g_DropTarget.m_hWnd = hDlg;
+		  OleInitialize(nullptr);
+		  RegisterDragDrop(hDlg, &g_DropTarget);
+		  /* Compare with... in system menu (task #9) */
+		  { HMENU hSys = GetSystemMenu(hDlg, FALSE);
+		    if (hSys) AppendMenu(hSys, MF_STRING, IDM_COMPARE_FILE, ResStr(IDS_COMPARE_WITH));
+		  }
 		  return TRUE;
 		}
 		case WM_NOTIFY: {
@@ -442,12 +676,25 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		}
 		case WM_DROPFILES: {
 			HDROP hDrop = (HDROP)wParam;
-            TCHAR szFileName[MAX_PATH];
+            TCHAR szDropped[MAX_PATH * 4];
+            TCHAR szLong[MAX_PATH * 4 + 8];
 
-			DragQueryFile(hDrop, 0, szFileName, ARRAYSIZE(szFileName));
+			szDropped[0] = 0;
+			DragQueryFile(hDrop, 0, szDropped, ARRAYSIZE(szDropped));
+			private_MakeLongPath(szDropped, szLong, ARRAYSIZE(szLong));
             if ( hFile && hFile != INVALID_HANDLE_VALUE )
                 CloseHandle(hFile);
-			hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, szFileName, sizeof(szFileName), hInstance, &hTooltip);
+			dwFileNameLength = (lstrlen(szLong) + 1) * sizeof(TCHAR) + 1024;
+			if (lpstrFileName) LocalFree(lpstrFileName);
+			lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
+			if (lpstrFileName) {
+				StringCchCopy(lpstrFileName, dwFileNameLength / sizeof(TCHAR), szLong);
+				hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, lpstrFileName, dwFileNameLength, hInstance, &hTooltip);
+				if (hFile != INVALID_HANDLE_VALUE) {
+					private_AddRecentFile(szDropped);
+					private_RebuildRecentMenu(hDlg);
+				}
+			}
 			DragFinish(hDrop);
 			break;
 		}
@@ -491,6 +738,10 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                                         hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile,
                                                                   lpstrFileName, dwFileNameLength,
                                                                   hInstance, &hTooltip);
+                                        if (hFile != INVALID_HANDLE_VALUE) {
+                                            private_AddRecentFile(lpstrFileName);
+                                            private_RebuildRecentMenu(hDlg);
+                                        }
                                     }
                                     CoTaskMemFree(pszPath);
                                 }
@@ -531,7 +782,23 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			private_SaveWindowPos(hDlg);
 			break;
 		}
+		case WM_SYSCOMMAND: {
+			UINT uCmd = (UINT)(wParam & 0xFFF0);
+			if (uCmd == IDM_COMPARE_FILE) {
+				private_CompareFiles(hDlg, hInstance, lpstrFileName);
+				break;
+			}
+			if (wParam >= ID_RECENT_BASE && wParam < ID_RECENT_BASE + RECENT_MAX) {
+				private_OpenRecentFile(hDlg, hTabCtrl, hEditFile,
+					&hFile, &lpstrFileName, &dwFileNameLength,
+					hInstance, &hTooltip, (UINT)(wParam - ID_RECENT_BASE));
+				break;
+			}
+			return DefWindowProc(hDlg, uMsg, wParam, lParam);
+		}
 		case WM_CLOSE: {
+			RevokeDragDrop(hDlg);
+			OleUninitialize();
 			if (hFile != NULL && hFile != INVALID_HANDLE_VALUE) {
 				CloseHandle(hFile);
 			}
