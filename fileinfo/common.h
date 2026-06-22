@@ -2,6 +2,7 @@
 #define _COMMON_H_
 #include <windows.h>
 #include <strsafe.h>
+#include "resource.h"
 
 
 #define WM_SETFILE_HANDLE    (WM_USER + 1020)
@@ -10,10 +11,13 @@
 
 BOOL CALLBACK common_CreateSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity);
 VOID CALLBACK common_FreeSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity);
-VOID CALLBACK common_ShowError(HWND hParent, LPTSTR lpstrMessage);
+VOID CALLBACK common_ShowError(HWND hParent, LPCTSTR lpstrMessage);
 
 HWND CreateToolTipForRect(HWND hwndParent, HINSTANCE hInstance, LPTSTR lpstrText);
 HWND CreateToolTip(int iCtrlId, HWND hDlg, HINSTANCE hInstance, PTSTR pszText);
+
+/* Load string from STRINGTABLE into a rotating static buffer. */
+LPCTSTR ResStr(UINT nID);
 
 #ifndef __cplusplus
 #define nullptr NULL

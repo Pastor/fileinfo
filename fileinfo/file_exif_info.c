@@ -29,13 +29,13 @@
 /* ------------------------------------------------------------------ */
 
 static struct {
-    LPTSTR lpName;
+    UINT   nNameID;
     int    iWidth;
 } g_ExifColumns[] = {
-    { TEXT("#"),        30  },
-    { TEXT("“ег"),      200 },
-    { TEXT("“ип"),      60  },
-    { TEXT("«начение"), 280 },
+    { IDS_EXIF_COL_NUM,        30  },
+    { IDS_EXIF_COL_TAG,      200 },
+    { IDS_EXIF_COL_TYPE,      60  },
+    { IDS_EXIF_COL_VALUE, 280 },
 };
 
 static void
@@ -50,7 +50,7 @@ private_InitListView(HWND hListView)
 
     for (i = 0; i < sizeof(g_ExifColumns)/sizeof(g_ExifColumns[0]); ++i) {
         lvc.iSubItem = i;
-        lvc.pszText  = g_ExifColumns[i].lpName;
+        lvc.pszText  = (LPTSTR)ResStr(g_ExifColumns[i].nNameID);
         lvc.cx       = g_ExifColumns[i].iWidth;
         ListView_InsertColumn(hListView, i, &lvc);
     }
@@ -177,7 +177,7 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
 
         if (nIndex == 0) {
             /* File opened successfully but contains no metadata. */
-            private_AddRow(hListView, 0, TEXT("Ч"), TEXT("(метаданные отсутствуют)"),
+            private_AddRow(hListView, 0, ResStr(IDS_EXIF_DASH), ResStr(IDS_EXIF_NO_META_MSG),
                            TEXT(""), TEXT(""));
         }
     } catch (const Exiv2::Error& e) {
@@ -185,7 +185,7 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
         char  szWhat[256];
         StringCchCopyA(szWhat, ARRAYSIZE(szWhat), e.what());
         MultiByteToWideChar(CP_ACP, 0, szWhat, -1, szMsg, ARRAYSIZE(szMsg));
-        private_AddRow(hListView, 0, TEXT("!"), TEXT("ќшибка чтени€ EXIF"),
+        private_AddRow(hListView, 0, TEXT("!"), ResStr(IDS_EXIF_ERR_READ),
                        TEXT(""), szMsg);
     }
 }
@@ -199,10 +199,10 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
     (void)hDlg;
     (void)lpstrFileName;
     private_AddRow(hListView, 0,
-                   TEXT("Ч"),
-                   TEXT("EXIF не поддерживаетс€"),
+                   ResStr(IDS_EXIF_DASH),
+                   ResStr(IDS_EXIF_NO_SUPPORT),
                    TEXT(""),
-                   TEXT("—оберите проект с EXIV2_AVAILABLE и библиотекой Exiv2."));
+                   ResStr(IDS_EXIF_NO_SUPPORT_HINT));
 }
 
 #endif /* EXIV2_AVAILABLE */

@@ -14,14 +14,14 @@ static INT     iStreamNameEditItem      = -1;
 
 static struct tagTransferColumn {
 	INT		iId;
-	LPTSTR	lpName;
+	UINT	nNameID;
 	INT		iWidth;
 	INT		iMask;
 } g_ListViewColumn [] = {
-	{ 0,	TEXT("№"),	      30,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 1,	TEXT("Имя"),	  100, LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 2,	TEXT("Размер"),	  75,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 3,	TEXT("Выделено"), 80,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT }
+	{ 0,	IDS_COL_NUM,	      30,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 1,	IDS_COL_NAME,	  100, LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 2,	IDS_COL_SIZE,	  75,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 3,	IDS_COL_ALLOC, 80,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT }
 };
 
 
@@ -34,7 +34,7 @@ private_InitListView(HWND hListView) {
 	    ZeroMemory( &lvColumn, sizeof(lvColumn) );
 	    lvColumn.mask = g_ListViewColumn[iCount].iMask;
 	    lvColumn.iSubItem = g_ListViewColumn[iCount].iId;
-	    lvColumn.pszText = g_ListViewColumn[iCount].lpName;
+	    lvColumn.pszText = (LPTSTR)ResStr(g_ListViewColumn[iCount].nNameID);
 	    lvColumn.cx = g_ListViewColumn[iCount].iWidth;
 	    lvColumn.fmt = LVCFMT_CENTER;
 	    ListView_InsertColumn( hListView, iCount, &lvColumn );
@@ -160,7 +160,7 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
     ofn.hwndOwner     = hDlg;
     ofn.lpstrFile     = szSource;
     ofn.nMaxFile      = ARRAYSIZE(szSource);
-    ofn.lpstrTitle    = TEXT("Выбрать файл для записи в поток");
+    ofn.lpstrTitle    = ResStr(IDS_STREAM_OPEN_TITLE);
     ofn.lpstrFilter   = TEXT("Все файлы (*.*)\0*.*\0");
     ofn.Flags         = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
@@ -173,10 +173,9 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
 
     /* Confirmation */
     StringCchPrintf(szConfirm, ARRAYSIZE(szConfirm),
-        TEXT("Записать содержимое файла:\n\"%s\"\n\nв поток:\n\"%s\"\n\n")
-        TEXT("Существующее содержимое потока будет перезаписано."),
+        ResStr(IDS_STREAM_CONFIRM_FMT),
         szSource, lpstrStreamName);
-    if (MessageBox(hDlg, szConfirm, TEXT("Подтверждение"),
+    if (MessageBox(hDlg, szConfirm, ResStr(IDS_STREAM_CONFIRM_TITLE),
                    MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
@@ -186,7 +185,7 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
                       NULL, OPEN_EXISTING,
                       FILE_ATTRIBUTE_NORMAL, NULL);
     if (hSrc == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, TEXT("Открытие файла-источника"));
+        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_SRC_OPEN));
         return;
     }
 
@@ -196,7 +195,7 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
                          NULL, CREATE_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, NULL);
     if (hStream == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, TEXT("Открытие потока для записи"));
+        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_DST_OPEN));
         CloseHandle(hSrc);
         return;
     }
@@ -210,14 +209,14 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
     }
 
     if (!bOk)
-        common_ShowError(hDlg, TEXT("Запись потока"));
+        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_WRITE));
 
     CloseHandle(hStream);
     CloseHandle(hSrc);
 
     if (bOk) {
-        MessageBox(hDlg, TEXT("Поток успешно перезаписан."),
-                   TEXT("Успех"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(hDlg, ResStr(IDS_STREAM_WRITE_OK),
+                   ResStr(IDS_STREAM_WRITE_OK_TITLE), MB_OK | MB_ICONINFORMATION);
         /* Refresh sizes in the list */
         SendMessage(hDlg, WM_SETFILE_HANDLE, 0, (LPARAM)hFile);
     }
@@ -252,7 +251,7 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
     ofn.hwndOwner     = hDlg;
     ofn.lpstrFile     = szSavePath;
     ofn.nMaxFile      = ARRAYSIZE(szSavePath);
-    ofn.lpstrTitle    = TEXT("Сохранить поток как");
+    ofn.lpstrTitle    = ResStr(IDS_STREAM_SAVE_TITLE);
     ofn.lpstrFilter   = TEXT("Все файлы (*.*)\0*.*\0");
     ofn.Flags         = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
@@ -265,7 +264,7 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
                          NULL, OPEN_EXISTING,
                          FILE_ATTRIBUTE_NORMAL, NULL);
     if (hStream == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, TEXT("Открытие потока"));
+        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_OPEN));
         return;
     }
 
@@ -275,7 +274,7 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
                           NULL, CREATE_ALWAYS,
                           FILE_ATTRIBUTE_NORMAL, NULL);
     if (hOutFile == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, TEXT("Создание файла"));
+        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_FILE_OPEN));
         CloseHandle(hStream);
         return;
     }
@@ -289,15 +288,15 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
     }
 
     if (!bOk)
-        common_ShowError(hDlg, TEXT("Запись файла"));
+        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_READ));
 
     CloseHandle(hOutFile);
     CloseHandle(hStream);
 
     if (bOk)
         MessageBox(hDlg,
-                   TEXT("Поток успешно сохранён."),
-                   TEXT("Сохранение"),
+                   ResStr(IDS_STREAM_SAVE_OK),
+                   ResStr(IDS_STREAM_SAVE_OK_TITLE),
                    MB_OK | MB_ICONINFORMATION);
 }
 
@@ -390,8 +389,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                     INT iSel = ListView_GetSelectionMark(hListView);
                     if (iSel < 0 || !lpstrFilePath) {
                         MessageBox(hDlg,
-                            TEXT("Выберите поток из списка."),
-                            TEXT("Создать поток"), MB_OK | MB_ICONINFORMATION);
+                            ResStr(IDS_STREAM_NO_SEL_MSG),
+                            ResStr(IDS_STREAM_NO_SEL_TITLE), MB_OK | MB_ICONINFORMATION);
                         break;
                     }
                     {
@@ -400,8 +399,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                                             szStreamName, ARRAYSIZE(szStreamName));
                         if (szStreamName[0] == TEXT('\0')) {
                             MessageBox(hDlg,
-                                TEXT("Выберите поток из списка."),
-                                TEXT("Создать поток"), MB_OK | MB_ICONINFORMATION);
+                                ResStr(IDS_STREAM_NO_SEL_MSG),
+                                ResStr(IDS_STREAM_NO_SEL_TITLE), MB_OK | MB_ICONINFORMATION);
                             break;
                         }
                         private_LoadFileToStream(hDlg, lpstrFilePath,
@@ -431,9 +430,9 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 						if ( ListView_GetItemCount(hListView) == 0 )
 							break;
 						hStreamMenu = CreatePopupMenu();
-			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   TEXT("Просмотреть"));
-                        AppendMenu(hStreamMenu, uFlags, IDM_SAVE_STREAM,   TEXT("Сохранить"));
-                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("Создать"));
+			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   ResStr(IDS_STREAM_MENU_VIEW));
+                        AppendMenu(hStreamMenu, uFlags, IDM_SAVE_STREAM,   ResStr(IDS_STREAM_MENU_SAVE));
+                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, ResStr(IDS_STREAM_MENU_CREATE));
                         SetForegroundWindow(hListView);
                         TrackPopupMenu(hStreamMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, p.x, p.y, 0, hListView, NULL);
 			            DestroyMenu(hStreamMenu);
@@ -473,8 +472,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
               if (szName[0] == TEXT('\0')) {
                   MessageBox(hDlg,
-                      TEXT("Имя потока не может быть пустым."),
-                      TEXT("Создать поток"), MB_OK | MB_ICONWARNING);
+                      ResStr(IDS_STREAM_EMPTY_NAME_MSG),
+                      ResStr(IDS_STREAM_NO_SEL_TITLE), MB_OK | MB_ICONWARNING);
                   /* Remove the blank row we inserted */
                   if (iStreamNameEditItem >= 0) {
                       ListView_DeleteItem(hListView, iStreamNameEditItem);
@@ -501,7 +500,7 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                       /* Refresh the stream list */
                       SendMessage(hDlg, WM_SETFILE_HANDLE, 0, (LPARAM)hFile);
                   } else {
-                      common_ShowError(hDlg, TEXT("Создание потока"));
+                      common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_CREATE));
                       if (iStreamNameEditItem >= 0) {
                           ListView_DeleteItem(hListView, iStreamNameEditItem);
                           iStreamNameEditItem = -1;
@@ -510,8 +509,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
               } else {
                   /* lpstrFilePath is NULL - no file selected */
                   MessageBox(hDlg,
-                      TEXT("Файл не выбран."),
-                      TEXT("Создать поток"), MB_OK | MB_ICONWARNING);
+                      ResStr(IDS_STREAM_NO_FILE_MSG),
+                      ResStr(IDS_STREAM_NO_SEL_TITLE), MB_OK | MB_ICONWARNING);
                   if (iStreamNameEditItem >= 0) {
                       ListView_DeleteItem(hListView, iStreamNameEditItem);
                       iStreamNameEditItem = -1;

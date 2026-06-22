@@ -50,6 +50,64 @@
 #define IDM_SAVE_STREAM                 1085
 #define IDC_SHELL_INTEGRATE             1086
 
+// String table IDs
+#define IDS_ERROR_TITLE          2000
+#define IDS_ERROR_FORMAT         2001
+#define IDS_APP_TITLE            2010
+#define IDS_TAB_BASIC            2011
+#define IDS_TAB_STANDARD         2012
+#define IDS_TAB_STREAMS          2013
+#define IDS_TAB_ID               2014
+#define IDS_TAB_EXIF             2015
+#define IDS_TOOLTIP_OPEN_FILE    2016
+#define IDS_TOOLTIP_OPEN_DIR     2017
+#define IDS_BROWSE_TITLE         2018
+#define IDS_WARN_READONLY_MSG    2019
+#define IDS_WARN_READONLY_TITLE  2020
+#define IDS_ERR_SECURITY         2021
+#define IDS_ERR_SETATTR          2022
+#define IDS_ERR_CREATEFILE       2023
+#define IDS_ERR_REG_CREATE       2024
+#define IDS_ERR_REG_CREATE_CMD   2025
+#define IDS_ERR_SETFILEINFO      2026
+#define IDS_COL_NUM              2030
+#define IDS_COL_NAME             2031
+#define IDS_COL_SIZE             2032
+#define IDS_COL_ALLOC            2033
+#define IDS_STREAM_OPEN_TITLE    2034
+#define IDS_STREAM_CONFIRM_FMT   2035
+#define IDS_STREAM_CONFIRM_TITLE 2036
+#define IDS_STREAM_ERR_SRC_OPEN  2037
+#define IDS_STREAM_ERR_DST_OPEN  2038
+#define IDS_STREAM_ERR_WRITE     2039
+#define IDS_STREAM_WRITE_OK      2040
+#define IDS_STREAM_WRITE_OK_TITLE 2041
+#define IDS_STREAM_SAVE_TITLE    2042
+#define IDS_STREAM_ERR_OPEN      2043
+#define IDS_STREAM_ERR_FILE_OPEN 2044
+#define IDS_STREAM_ERR_READ      2045
+#define IDS_STREAM_SAVE_OK       2046
+#define IDS_STREAM_SAVE_OK_TITLE 2047
+#define IDS_STREAM_MENU_VIEW     2048
+#define IDS_STREAM_MENU_SAVE     2049
+#define IDS_STREAM_MENU_CREATE   2050
+#define IDS_STREAM_NO_SEL_MSG    2051
+#define IDS_STREAM_NO_SEL_TITLE  2052
+#define IDS_STREAM_EMPTY_NAME_MSG   2053
+#define IDS_STREAM_EMPTY_NAME_TITLE 2054
+#define IDS_STREAM_ERR_CREATE    2055
+#define IDS_STREAM_NO_FILE_MSG   2056
+#define IDS_STREAM_NO_FILE_TITLE 2057
+#define IDS_EXIF_COL_NUM         2060
+#define IDS_EXIF_COL_TAG         2061
+#define IDS_EXIF_COL_TYPE        2062
+#define IDS_EXIF_COL_VALUE       2063
+#define IDS_EXIF_DASH            2064
+#define IDS_EXIF_NO_META_MSG     2065
+#define IDS_EXIF_ERR_READ        2066
+#define IDS_EXIF_NO_SUPPORT      2067
+#define IDS_EXIF_NO_SUPPORT_HINT 2068
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED

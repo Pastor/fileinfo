@@ -6,6 +6,17 @@ static PSECURITY_DESCRIPTOR pSecurityDescriptor = NULL;
 static PSID pSid = NULL;
 static PACL pAcl = NULL;
 
+LPCTSTR ResStr(UINT nID)
+{
+    enum { SLOTS = 8, MAXLEN = 1024 };
+    static TCHAR s_bufs[SLOTS][MAXLEN];
+    static int   s_slot = 0;
+    TCHAR *buf = s_bufs[s_slot++ & (SLOTS - 1)];
+    if (!LoadString(GetModuleHandle(NULL), nID, buf, MAXLEN))
+        buf[0] = 0;
+    return buf;
+}
+
 VOID CALLBACK 
 common_FreeSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity) {
 	if ( pSid )
@@ -55,7 +66,7 @@ common_CreateSecurityAttributes(LPSECURITY_ATTRIBUTES lpSecurity) {
 }
 
 static LPTSTR CALLBACK 
-private_GetLastError(LPTSTR pMessage) {
+private_GetLastError(LPCTSTR pMessage) {
   LPVOID lpMsgBuf;
   LPVOID lpDisplayBuf;
   DWORD dwError;
@@ -76,17 +87,17 @@ private_GetLastError(LPTSTR pMessage) {
 	  * sizeof(TCHAR) );
   StringCchPrintf((LPTSTR)lpDisplayBuf, 
         LocalSize(lpDisplayBuf) / sizeof(TCHAR),
-        TEXT("%s failed with error %d: %s"), 
+        ResStr(IDS_ERROR_FORMAT), 
         pMessage, dwError, lpMsgBuf); 
   LocalFree(lpMsgBuf);
   return (LPTSTR)lpDisplayBuf;
 }
 
 VOID CALLBACK
-common_ShowError(HWND hParent, LPTSTR lpstrMessage) {
+common_ShowError(HWND hParent, LPCTSTR lpstrMessage) {
 	LPTSTR lpstrErrorMsg;
 
 	lpstrErrorMsg = private_GetLastError(lpstrMessage);
-	MessageBox(hParent, lpstrErrorMsg, TEXT("Ошибка"), MB_OK | MB_ICONERROR);
+	MessageBox(hParent, lpstrErrorMsg, ResStr(IDS_ERROR_TITLE), MB_OK | MB_ICONERROR);
 	LocalFree(lpstrErrorMsg);
 }

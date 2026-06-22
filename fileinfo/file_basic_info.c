@@ -204,7 +204,7 @@ static HANDLE hFile = NULL;
 	        
 			fbi.FileAttributes = dwFileAttributes;
 			if ( !SetFileInformationByHandle( hFile, FileBasicInfo, &fbi, sizeof(fbi) ) ) {
-				common_ShowError(hDlg, TEXT("SetFileInformationByHandle"));
+				common_ShowError(hDlg, ResStr(IDS_ERR_SETFILEINFO));
 			}
             private_SetFileBasicInformation(hDlg, &fbi, hFile);
 			private_UpdateButtonState(hDlg, &fbi);

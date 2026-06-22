@@ -24,14 +24,14 @@ static struct tagButtonCtrl {
 
 static struct tagTabCtrl {	
 	FILE_INFO_BY_HANDLE_CLASS FileInfoClass;
-	LPTSTR                    lpstrCaption;
+	UINT                      nCaptionID;
 	LPTSTR                    lpstrWindow;
 	HWND                      hWnd;
 	DLGPROC                   pfnProc;
 } g_TabInfoCtrl [] = {
-    { FileBasicInfo, TEXT("Основная"), TEXT("FILE_BASIC_INFO"), NULL, fbi_WindowHandler },
-    { FileStandardInfo, TEXT("Стандартная"), TEXT("FILE_STANDART_INFO"), NULL, fsi_WindowHandler },
-    { FileStreamInfo, TEXT("Потоки"), TEXT("FILE_STREAM_INFO"), NULL, fssi_WindowHandler },
+    { FileBasicInfo, IDS_TAB_BASIC, TEXT("FILE_BASIC_INFO"), NULL, fbi_WindowHandler },
+    { FileStandardInfo, IDS_TAB_STANDARD, TEXT("FILE_STANDART_INFO"), NULL, fsi_WindowHandler },
+    { FileStreamInfo, IDS_TAB_STREAMS, TEXT("FILE_STREAM_INFO"), NULL, fssi_WindowHandler },
     //{ FileNameInfo, TEXT("NameInfo"), TEXT(""), nullptr, nullptr },
     //{ FileCompressionInfo, TEXT("CompressionInfo"), TEXT(""), nullptr, nullptr },
     //{ FileAttributeTagInfo, TEXT("AttributeTagInfo"), TEXT(""), nullptr, nullptr },
@@ -46,11 +46,11 @@ static struct tagTabCtrl {
     //,
     //{ FileStorageInfo, TEXT("FileStorageInfo"), TEXT(""), nullptr, nullptr },
     //{ FileAlignmentInfo, TEXT("FileAlignmentInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdInfo, TEXT("Идентификатор"), TEXT("FILE_ID_INFO"), NULL, fii_WindowHandler }//,
+    { FileIdInfo, IDS_TAB_ID, TEXT("FILE_ID_INFO"), NULL, fii_WindowHandler }//,
     //{ FileIdExtdDirectoryInfo, TEXT("FileIdExtdDirectoryInfo"), TEXT(""), nullptr, nullptr },
     //{ FileIdExtdDirectoryRestartInfo, TEXT("FileIdExtdDirectoryRestartInfo"), TEXT(""), nullptr, nullptr }
 #endif
-    ,{ MaximumFileInfoByHandleClass, TEXT("EXIF"), TEXT("FILE_EXIF_INFO"), NULL, fxi_WindowHandler }
+    ,{ MaximumFileInfoByHandleClass, IDS_TAB_EXIF, TEXT("FILE_EXIF_INFO"), NULL, fxi_WindowHandler }
 };
 
 
@@ -79,14 +79,14 @@ private_RegisterShell(HWND hDlg, HINSTANCE hInstance)
 
     lRet = RegCreateKeyEx(HKEY_CURRENT_USER, g_szShellKey, 0, NULL,
                           REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    if (lRet != ERROR_SUCCESS) { common_ShowError(hDlg, TEXT("RegCreateKeyEx")); return FALSE; }
+    if (lRet != ERROR_SUCCESS) { common_ShowError(hDlg, ResStr(IDS_ERR_REG_CREATE)); return FALSE; }
     RegSetValueEx(hKey, NULL, 0, REG_SZ, (BYTE*)TEXT("Open in FileInfo"),
                   (lstrlen(TEXT("Open in FileInfo")) + 1) * sizeof(TCHAR));
     RegCloseKey(hKey);
 
     lRet = RegCreateKeyEx(HKEY_CURRENT_USER, g_szShellCmdKey, 0, NULL,
                           REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    if (lRet != ERROR_SUCCESS) { common_ShowError(hDlg, TEXT("RegCreateKeyEx cmd")); return FALSE; }
+    if (lRet != ERROR_SUCCESS) { common_ShowError(hDlg, ResStr(IDS_ERR_REG_CREATE_CMD)); return FALSE; }
     RegSetValueEx(hKey, NULL, 0, REG_SZ, (BYTE*)szCmd, (lstrlen(szCmd) + 1) * sizeof(TCHAR));
     RegCloseKey(hKey);
     return TRUE;
@@ -153,12 +153,14 @@ private_InitTabInfoCtrl(HWND hTabCtrl, HINSTANCE hInstance) {
 	TCITEM tci;
 	RECT rect;
 	int iTab;
+	TCHAR szCap[128];
 
 	GetClientRect(hTabCtrl, &rect);
 	RtlZeroMemory(&tci, sizeof(tci));
 	tci.mask = TCIF_TEXT;
 	for (iTab = 0; iTab < sizeof(g_TabInfoCtrl)/sizeof(g_TabInfoCtrl[0]); ++iTab) {
-		tci.pszText = g_TabInfoCtrl[iTab].lpstrCaption;
+		LoadString(hInstance, g_TabInfoCtrl[iTab].nCaptionID, szCap, ARRAYSIZE(szCap));
+		tci.pszText = szCap;
 		TabCtrl_InsertItem(hTabCtrl, iTab, &tci);
         if (g_TabInfoCtrl[iTab].hWnd == NULL) {
 			g_TabInfoCtrl[iTab].hWnd = CreateDialogParam(
@@ -209,7 +211,7 @@ CreateToolTip(int iCtrlId, HWND hDlg, HINSTANCE hInstance, PTSTR pszText) {
 }
 
 HWND 
-CreateToolTipForRect(HWND hwndParent, HINSTANCE hInstance, LPTSTR lpstrText) {
+CreateToolTipForRect(HWND hwndParent, HINSTANCE hInstance, LPCTSTR lpstrText) {
 	TOOLINFO ti = { 0 };
     HWND hwndTT = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, 
                                  WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, 
@@ -224,7 +226,7 @@ CreateToolTipForRect(HWND hwndParent, HINSTANCE hInstance, LPTSTR lpstrText) {
     ti.uFlags   = TTF_SUBCLASS;
     ti.hwnd     = hwndParent;
     ti.hinst    = hInstance;
-    ti.lpszText = lpstrText;
+    ti.lpszText = (LPTSTR)lpstrText;
     
     GetClientRect (hwndParent, &ti.rect);
     SendMessage(hwndTT, TTM_ADDTOOL, 0, (LPARAM) (LPTOOLINFO) &ti);	
@@ -265,7 +267,7 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 
   RtlZeroMemory(&sa, sizeof(sa));
   if ( !common_CreateSecurityAttributes(&sa) ) {
-		common_ShowError(hDlg, TEXT("Create secutiry attributes"));
+		common_ShowError(hDlg, ResStr(IDS_ERR_SECURITY));
 		SetWindowText(hEditFile, TEXT(""));
 		return INVALID_HANDLE_VALUE;
 	}	
@@ -283,9 +285,9 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 		  lpMessage = (LPTSTR)LocalAlloc(LPTR, dwMessageLength);
 		  StringCchPrintf( lpMessage, 
 			  dwMessageLength, 
-			  TEXT("Файл \"%s\" защищен от записи.\r\nСнять защиту и открыть?"), 
+			  ResStr(IDS_WARN_READONLY_MSG), 
 			  lpcstrFileName );
-	      iRet = MessageBox(hDlg, lpMessage, TEXT("Предупреждение"), MB_YESNO | MB_ICONQUESTION);
+	      iRet = MessageBox(hDlg, lpMessage, ResStr(IDS_WARN_READONLY_TITLE), MB_YESNO | MB_ICONQUESTION);
 		  if ( iRet != IDYES ) {
 			  LocalFree(lpMessage);
 			  common_FreeSecurityAttributes(&sa);
@@ -293,7 +295,7 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 		  }
 		  dwFileAttributes &= ~FILE_ATTRIBUTE_READONLY;
 		  if ( !SetFileAttributes( lpcstrFileName, dwFileAttributes ) ) {
-			  common_ShowError(hDlg, TEXT("SetFileAttributes"));
+			  common_ShowError(hDlg, ResStr(IDS_ERR_SETATTR));
 			  LocalFree(lpMessage);
 			  common_FreeSecurityAttributes(&sa);
 			  return INVALID_HANDLE_VALUE;
@@ -315,7 +317,7 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
 	}
 	if ( hFile == INVALID_HANDLE_VALUE ) {
-		common_ShowError(hDlg, TEXT("CreateFile"));
+		common_ShowError(hDlg, ResStr(IDS_ERR_CREATEFILE));
 		SetWindowText(hEditFile, TEXT(""));
         private_SetFileHandle(hDlg, hTabCtrl, nullptr, lpcstrFileName);
 	} else {
@@ -323,7 +325,7 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 		SetWindowText(hEditFile, lpcstrFileName);
         if ((*hTooltip) != nullptr)
 		    DestroyWindow( (*hTooltip) );
-	    (*hTooltip) = CreateToolTipForRect(hEditFile, hInstance, (LPTSTR)lpcstrFileName);
+	    (*hTooltip) = CreateToolTipForRect(hEditFile, hInstance, lpcstrFileName);
 		private_SetFileHandle(hDlg, hTabCtrl, hFile, lpcstrFileName);
 	}
 	common_FreeSecurityAttributes(&sa);
@@ -343,14 +345,14 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch ( uMsg ) {
 		case WM_INITDIALOG: {
 		  hInstance = (HINSTANCE)lParam;
-		  SetWindowText(hDlg, TEXT("Информатор"));
+		  SetWindowText(hDlg, ResStr(IDS_APP_TITLE));
 		  hEditFile = GetDlgItem(hDlg, IDC_EDITFILE);
 		  hTabCtrl = GetDlgItem(hDlg, IDC_INFOTAB);
           hRestartAsAdministrator = GetDlgItem(hDlg, IDC_RESTART_AS_ADMINISTARTOR);
 		  private_InitButtonImageList(hDlg, hInstance);
 		  private_InitTabInfoCtrl(hTabCtrl, hInstance);
-		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENFILE), hInstance, TEXT("Открыть файл"));
-		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENDIRECTORY), hInstance, TEXT("Открыть директорию"));
+		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENFILE), hInstance, ResStr(IDS_TOOLTIP_OPEN_FILE));
+		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENDIRECTORY), hInstance, ResStr(IDS_TOOLTIP_OPEN_DIR));
 #if (NTDDI_VERSION >= NTDDI_VISTA)
           Button_SetElevationRequiredState(hRestartAsAdministrator, TRUE);
           EnableWindow(hRestartAsAdministrator, !IsElevated());
@@ -427,7 +429,7 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				    lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
   				
 				    bi.hwndOwner = hDlg;
-				    bi.lpszTitle = TEXT("Выбор директории или файла");
+				    bi.lpszTitle = ResStr(IDS_BROWSE_TITLE);
 				    bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_RETURNFSANCESTORS;
                     SHGetFolderLocation(hDlg, CSIDL_DRIVES, nullptr, 0, (LPITEMIDLIST *)&bi.pidlRoot);
 				    lpIdList = SHBrowseForFolder(&bi);
