@@ -23,15 +23,11 @@ fsi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			if ( bResult ) {
 			  /* Task #10: format sizes with human-readable suffix */
 			  {
-				TCHAR szHR[32], szBuf[96];
+				TCHAR szHR[32];
 				StrFormatByteSize64(fsi.AllocationSize.QuadPart, szHR, ARRAYSIZE(szHR));
-				StringCchPrintf(szBuf, ARRAYSIZE(szBuf), ResStr(IDS_SIZE_FMT),
-				                fsi.AllocationSize.QuadPart, szHR);
-				SetDlgItemText(hDlg, IDC_ALLOCATED_SIZE, szBuf);
+				SetDlgItemText(hDlg, IDC_ALLOCATED_SIZE, szHR);
 				StrFormatByteSize64(fsi.EndOfFile.QuadPart, szHR, ARRAYSIZE(szHR));
-				StringCchPrintf(szBuf, ARRAYSIZE(szBuf), ResStr(IDS_SIZE_FMT),
-				                fsi.EndOfFile.QuadPart, szHR);
-				SetDlgItemText(hDlg, IDC_ENDOF_FILE, szBuf);
+				SetDlgItemText(hDlg, IDC_ENDOF_FILE, szHR);
 			  }
 			  SetDlgItemInt(hDlg, IDC_NUMBER_OF_LINKS, fsi.NumberOfLinks, FALSE );
 			  CheckDlgButton( hDlg, IDC_IS_DIRECTORY, fsi.Directory ? BST_CHECKED : BST_UNCHECKED );
