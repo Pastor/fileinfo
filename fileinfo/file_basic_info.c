@@ -195,6 +195,7 @@ static HANDLE hFile = NULL;
 	  switch ( wCtrlId ) {
 	    case IDC_FILEINFO_SAVE: {
 			DWORD dwFileAttributes;
+			EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_SAVE), FALSE);
 
 			dwFileAttributes = fbi_GetFileAttributes(hDlg);
 			private_GetTimeDate(hDlg, IDC_BFI_CREATION_TIME_DATE, IDC_BFI_CREATION_TIME_TIME, &fbi.CreationTime);

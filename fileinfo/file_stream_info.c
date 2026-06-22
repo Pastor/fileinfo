@@ -1,4 +1,5 @@
 #include "common.h"
+#include <tchar.h>
 #include <commdlg.h>
 #include "file_stream_info.h"
 #include "resource.h"
@@ -145,7 +146,7 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
 {
     TCHAR        szSource[MAX_PATH];
     TCHAR        szAdsPath[MAX_PATH * 2];
-    TCHAR        szConfirm[MAX_PATH * 3];
+    LPTSTR       szConfirm = NULL;
     OPENFILENAME ofn;
     HANDLE       hSrc    = INVALID_HANDLE_VALUE;
     HANDLE       hStream = INVALID_HANDLE_VALUE;
@@ -171,13 +172,23 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
     StringCchCopy(szAdsPath, ARRAYSIZE(szAdsPath), lpstrFilePath);
     StringCchCat (szAdsPath, ARRAYSIZE(szAdsPath), lpstrStreamName);
 
-    /* Confirmation */
-    StringCchPrintf(szConfirm, ARRAYSIZE(szConfirm),
-        ResStr(IDS_STREAM_CONFIRM_FMT),
-        szSource, lpstrStreamName);
-    if (MessageBox(hDlg, szConfirm, ResStr(IDS_STREAM_CONFIRM_TITLE),
-                   MB_YESNO | MB_ICONQUESTION) != IDYES)
+    /* Confirmation: allocate buffer sized to actual inputs */
+    {
+        int nChars = _scwprintf(ResStr(IDS_STREAM_CONFIRM_FMT),
+                                szSource, lpstrStreamName) + 1;
+        szConfirm = (LPTSTR)HeapAlloc(GetProcessHeap(), 0,
+                                      (size_t)nChars * sizeof(TCHAR));
+        if (szConfirm)
+            swprintf_s(szConfirm, (size_t)nChars, ResStr(IDS_STREAM_CONFIRM_FMT),
+                       szSource, lpstrStreamName);
+    }
+    if (!szConfirm || MessageBox(hDlg, szConfirm, ResStr(IDS_STREAM_CONFIRM_TITLE),
+                                 MB_YESNO | MB_ICONQUESTION) != IDYES) {
+        HeapFree(GetProcessHeap(), 0, szConfirm);
         return;
+    }
+    HeapFree(GetProcessHeap(), 0, szConfirm);
+    szConfirm = NULL;
 
     /* Open source */
     hSrc = CreateFile(szSource,
