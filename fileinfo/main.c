@@ -101,6 +101,48 @@ private_UnregisterShell(VOID)
 
 static LPTSTR g_lpstrCmdLineFile = NULL;
 
+static const TCHAR g_szRegKey[] = TEXT("Software\\FileInfo");
+
+static VOID
+private_SaveWindowPos(HWND hDlg) {
+    HKEY hKey;
+    RECT rc;
+    if (!GetWindowRect(hDlg, &rc)) return;
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, g_szRegKey, 0, NULL,
+                       REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD val;
+        val = (DWORD)rc.left; RegSetValueEx(hKey, TEXT("WinX"), 0, REG_DWORD, (LPBYTE)&val, sizeof(val));
+        val = (DWORD)rc.top;  RegSetValueEx(hKey, TEXT("WinY"), 0, REG_DWORD, (LPBYTE)&val, sizeof(val));
+        RegCloseKey(hKey);
+    }
+}
+
+static BOOL
+private_RestoreWindowPos(HWND hDlg) {
+    HKEY  hKey;
+    BOOL  bOk = FALSE;
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, g_szRegKey, 0, KEY_QUERY_VALUE, &hKey) == ERROR_SUCCESS) {
+        DWORD x, y, cb = sizeof(DWORD);
+        if (RegQueryValueEx(hKey, TEXT("WinX"), NULL, NULL, (LPBYTE)&x, &cb) == ERROR_SUCCESS &&
+            RegQueryValueEx(hKey, TEXT("WinY"), NULL, NULL, (LPBYTE)&y, &cb) == ERROR_SUCCESS) {
+            /* Clamp to virtual screen so the window is never off-screen */
+            RECT rc; GetWindowRect(hDlg, &rc);
+            int w = rc.right - rc.left, h = rc.bottom - rc.top;
+            int vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
+            int vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+            int vw = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+            int vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+            int nx = ((int)x < vx) ? vx : ((int)x > vx + vw - w) ? vx + vw - w : (int)x;
+            int ny = ((int)y < vy) ? vy : ((int)y > vy + vh - h) ? vy + vh - h : (int)y;
+            SetWindowPos(hDlg, NULL, nx, ny, 0, 0,
+                         SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            bOk = TRUE;
+        }
+        RegCloseKey(hKey);
+    }
+    return bOk;
+}
+
 INT_PTR CALLBACK
 MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 BOOL
@@ -346,6 +388,12 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		case WM_INITDIALOG: {
 		  hInstance = (HINSTANCE)lParam;
 		  SetWindowText(hDlg, ResStr(IDS_APP_TITLE));
+		  SendMessage(hDlg, WM_SETICON, ICON_BIG,
+		      (LPARAM)LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP)));
+		  SendMessage(hDlg, WM_SETICON, ICON_SMALL,
+		      (LPARAM)LoadImage(hInstance, MAKEINTRESOURCE(IDI_APP),
+		                        IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+		                        GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR));
 		  hEditFile = GetDlgItem(hDlg, IDC_EDITFILE);
 		  hTabCtrl = GetDlgItem(hDlg, IDC_INFOTAB);
           hRestartAsAdministrator = GetDlgItem(hDlg, IDC_RESTART_AS_ADMINISTARTOR);
@@ -369,6 +417,7 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                                            dwFileNameLength, hInstance, &hTooltip);
               }
           }
+		  private_RestoreWindowPos(hDlg);
 		  return TRUE;
 		}
 		case WM_NOTIFY: {
@@ -417,40 +466,41 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				    break;
 			    }
 		        case IDC_OPENFILE: {
-			        BROWSEINFO bi;
-				    LPITEMIDLIST lpIdList;				
-
+                    IFileOpenDialog *pDlg = nullptr;
                     if ( hFile && hFile != INVALID_HANDLE_VALUE )
                         CloseHandle(hFile);
-				    RtlZeroMemory(&bi, sizeof(bi));
-				    dwFileNameLength = MAX_PATH * 1024 * sizeof(TCHAR);
-					if (lpstrFileName != NULL)
-						LocalFree(lpstrFileName);
-				    lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
-  				
-				    bi.hwndOwner = hDlg;
-				    bi.lpszTitle = ResStr(IDS_BROWSE_TITLE);
-				    bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_RETURNFSANCESTORS;
-                    SHGetFolderLocation(hDlg, CSIDL_DRIVES, nullptr, 0, (LPITEMIDLIST *)&bi.pidlRoot);
-				    lpIdList = SHBrowseForFolder(&bi);
-                    if (lpIdList != NULL) {
-#if defined(__cplusplus)
-			            IMalloc *comMalloc;
-
-					    SHGetPathFromIDList(lpIdList, lpstrFileName);
-					    if ( SUCCEEDED( SHGetMalloc(&comMalloc) ) ) {
-					        comMalloc->Free(lpIdList);
-					        comMalloc->Release();
-					    }
-#else
-						SHGetPathFromIDList(lpIdList, lpstrFileName);
-						CoTaskMemFree(lpIdList);
-#endif
-                        private_EnumerateStream(lpstrFileName);
-					    hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, lpstrFileName, dwFileNameLength, hInstance, &hTooltip);					
-				    }
-				    break;
-			    }
+                    hFile = INVALID_HANDLE_VALUE;
+                    if (SUCCEEDED(CoCreateInstance(__uuidof(FileOpenDialog), nullptr,
+                                                  CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg)))) {
+                        DWORD dwOpts;
+                        pDlg->GetOptions(&dwOpts);
+                        pDlg->SetOptions(dwOpts | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST
+                                                | FOS_PATHMUSTEXIST | FOS_DONTADDTORECENT);
+                        pDlg->SetTitle(ResStr(IDS_BROWSE_TITLE));
+                        if (SUCCEEDED(pDlg->Show(hDlg))) {
+                            IShellItem *pItem = nullptr;
+                            if (SUCCEEDED(pDlg->GetResult(&pItem))) {
+                                LPWSTR pszPath = nullptr;
+                                if (SUCCEEDED(pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszPath))) {
+                                    dwFileNameLength = (lstrlen(pszPath) + 1) * sizeof(TCHAR) + 1024;
+                                    if (lpstrFileName) LocalFree(lpstrFileName);
+                                    lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
+                                    if (lpstrFileName) {
+                                        StringCchCopy(lpstrFileName, dwFileNameLength / sizeof(TCHAR), pszPath);
+                                        private_EnumerateStream(lpstrFileName);
+                                        hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile,
+                                                                  lpstrFileName, dwFileNameLength,
+                                                                  hInstance, &hTooltip);
+                                    }
+                                    CoTaskMemFree(pszPath);
+                                }
+                                pItem->Release();
+                            }
+                        }
+                        pDlg->Release();
+                    }
+                    break;
+                }
                 case IDC_RESTART_AS_ADMINISTARTOR: {
                     TCHAR szPathBuffer[MAX_PATH * 4];
                     DWORD dwSize = ARRAYSIZE(szPathBuffer);
@@ -476,6 +526,10 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                 }
 			}
 		    break;
+		}
+		case WM_MOVE: {
+			private_SaveWindowPos(hDlg);
+			break;
 		}
 		case WM_CLOSE: {
 			if (hFile != NULL && hFile != INVALID_HANDLE_VALUE) {

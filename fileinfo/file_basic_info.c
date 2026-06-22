@@ -180,6 +180,24 @@ static HANDLE hFile = NULL;
 	  WORD wCtrlId = LOWORD(wParam);
 	  switch ( wNotifyId ) {
 	    case BN_CLICKED: {
+			/* Mutual exclusion: Normal vs all others; Encrypted vs Compressed */
+			if (wCtrlId == IDC_ATTRIBUTE_NORMAL &&
+			    IsDlgButtonChecked(hDlg, IDC_ATTRIBUTE_NORMAL) == BST_CHECKED) {
+			    /* Normal is set -> clear every other attribute */
+			    UINT id;
+			    for (id = 1018; id <= 1029; ++id)
+			        if (id != IDC_ATTRIBUTE_NORMAL)
+			            CheckDlgButton(hDlg, id, BST_UNCHECKED);
+			} else if (wCtrlId != IDC_ATTRIBUTE_NORMAL && wCtrlId >= 1018 && wCtrlId <= 1029 &&
+			           IsDlgButtonChecked(hDlg, wCtrlId) == BST_CHECKED) {
+			    /* Any non-Normal attribute set -> clear Normal */
+			    CheckDlgButton(hDlg, IDC_ATTRIBUTE_NORMAL, BST_UNCHECKED);
+			    /* Encrypted and Compressed are mutually exclusive */
+			    if (wCtrlId == IDC_ATTRIBUTE_CRYPTED)
+			        CheckDlgButton(hDlg, IDC_ATTRIBUTE_COMPRESSED, BST_UNCHECKED);
+			    else if (wCtrlId == IDC_ATTRIBUTE_COMPRESSED)
+			        CheckDlgButton(hDlg, IDC_ATTRIBUTE_CRYPTED, BST_UNCHECKED);
+			}
 			if ( wCtrlId == IDC_LOCKER ) {
 				fbi_EnableControls(hDlg, IsDlgButtonChecked(hDlg, IDC_LOCKER) == BST_CHECKED);
 				if ( hFile && hFile != INVALID_HANDLE_VALUE )

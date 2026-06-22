@@ -2,6 +2,7 @@
 // ���������� ����, ��������� � Microsoft Visual C++.
 // ������������ fileinfo.rc
 //
+#define IDI_APP                         101
 #define IDI_FILEOPEN                    102
 #define IDC_OPENFILE                    1001
 #define IDC_EDITFILE                    1002
