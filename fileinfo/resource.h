@@ -140,6 +140,12 @@
 #define IDS_ADD_ALIGN_FMT        2092
 #define IDS_ADD_REPARSE_FMT      2093
 #define IDS_STREAM_VIEWER_CLOSE  2094
+#define IDS_SAVE_CONFIRM_MSG     2095
+#define IDS_SAVE_CONFIRM_TITLE   2096
+#define IDS_STREAM_INVALID_NAME  2097
+#define IDS_SIZE_FMT             2098
+#define IDC_FILE_OWNER           1092
+#define IDC_EXTRA_INFO           1093
 
 // Next default values for new objects
 // 

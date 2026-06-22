@@ -1,4 +1,6 @@
 #include <windows.h>
+#include <aclapi.h>
+#pragma comment(lib, "advapi32.lib")
 #include "common.h"
 #include "file_basic_info.h"
 #include "resource.h"
@@ -52,7 +54,10 @@ fbi_GetFileAttributes(HWND hDlg) {
   if (IsDlgButtonChecked(hDlg, IDC_ATTRIBUTE_SPARSE) == BST_CHECKED) {
       dwResult |= FILE_ATTRIBUTE_SPARSE_FILE;
   }
-  //FILE_ATTRIBUTE_SPARSE_FILE
+  /* Task #15: ReparsePoint checkbox (IDC_CHECK12) */
+  if (IsDlgButtonChecked(hDlg, IDC_CHECK12) == BST_CHECKED) {
+      dwResult |= FILE_ATTRIBUTE_REPARSE_POINT;
+  }
   return dwResult;
 }
 
@@ -70,20 +75,24 @@ fbi_SetFileAttributes(HWND hDlg, DWORD dwFileAttributes) {
   CheckDlgButton(hDlg, IDC_ATTRIBUTE_DIRECTORY, dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ? BST_CHECKED : BST_UNCHECKED);
   CheckDlgButton(hDlg, IDC_ATTRIBUTE_CRYPTED, dwFileAttributes & FILE_ATTRIBUTE_ENCRYPTED ? BST_CHECKED : BST_UNCHECKED);
   CheckDlgButton(hDlg, IDC_ATTRIBUTE_SPARSE, dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE ? BST_CHECKED : BST_UNCHECKED);
+  /* Task #15 */
+  CheckDlgButton(hDlg, IDC_CHECK12, dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT ? BST_CHECKED : BST_UNCHECKED);
 }
 
 static VOID CALLBACK
 private_SetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGER lpTimeDate) {
 	SYSTEMTIME stime;
 	FILETIME   ftime;
-    FILETIME ltime;
 	HWND hDateWnd = GetDlgItem(hDlg, uDateCtrlId);
 	HWND hTimeWnd = GetDlgItem(hDlg, uTimeCtrlId);
 
 	ftime.dwHighDateTime = lpTimeDate->HighPart;
 	ftime.dwLowDateTime = lpTimeDate->LowPart;
-    FileTimeToLocalFileTime(&ftime, &ltime);
-	FileTimeToSystemTime(&ltime, &stime);
+    /* Task #11: DST-correct conversion (FileTimeToLocalFileTime ignores historical DST) */
+    { SYSTEMTIME stUTC;
+      FileTimeToSystemTime(&ftime, &stUTC);
+      SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stime);
+    }
 	DateTime_SetSystemtime(hDateWnd, GDT_VALID, &stime);
 	DateTime_SetSystemtime(hTimeWnd, GDT_VALID, &stime);
 }
@@ -92,7 +101,6 @@ static VOID CALLBACK
 private_GetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGER lpTimeDate) {
   SYSTEMTIME stime;
   SYSTEMTIME sdate;
-  FILETIME ltime;
   FILETIME ftime;
   HWND hTime = GetDlgItem(hDlg, uTimeCtrlId);
   HWND hDate = GetDlgItem(hDlg, uDateCtrlId);
@@ -106,8 +114,11 @@ private_GetTimeDate(HWND hDlg, UINT uDateCtrlId, UINT uTimeCtrlId, PLARGE_INTEGE
   stime.wDayOfWeek = sdate.wDayOfWeek;
   stime.wMonth = sdate.wMonth;
   stime.wYear = sdate.wYear;
-  SystemTimeToFileTime(&stime, &ltime);
-  LocalFileTimeToFileTime(&ltime, &ftime);
+  /* Task #11: DST-correct reverse conversion */
+  { SYSTEMTIME stUTC;
+    TzSpecificLocalTimeToSystemTime(NULL, &stime, &stUTC);
+    SystemTimeToFileTime(&stUTC, &ftime);
+  }
   lpTimeDate->HighPart = ftime.dwHighDateTime;
   lpTimeDate->LowPart = ftime.dwLowDateTime;
 }
@@ -119,6 +130,27 @@ private_SetFileBasicInformation(HWND hDlg, PFILE_BASIC_INFO pfbi, HANDLE hFile) 
 		BOOL bResult = GetFileInformationByHandleEx( hFile, FileBasicInfo, pfbi, sizeof(FILE_BASIC_INFO));
 		if ( bResult ) {
 			fbi_SetFileAttributes(hDlg, pfbi->FileAttributes);
+		}
+		/* Task #16: show file owner */
+		{
+			PSECURITY_DESCRIPTOR pSD = NULL;
+			PSID pOwnerSid = NULL;
+			if (GetSecurityInfo(hFile, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+			                    &pOwnerSid, NULL, NULL, NULL, &pSD) == ERROR_SUCCESS) {
+				TCHAR szOwner[128] = TEXT(""), szDomain[128] = TEXT("");
+				DWORD dwOwner = ARRAYSIZE(szOwner), dwDomain = ARRAYSIZE(szDomain);
+				SID_NAME_USE use;
+				if (LookupAccountSid(NULL, pOwnerSid, szOwner, &dwOwner,
+				                     szDomain, &dwDomain, &use)) {
+					TCHAR szFull[260];
+					if (szDomain[0])
+						StringCchPrintf(szFull, ARRAYSIZE(szFull), TEXT("%s\\%s"), szDomain, szOwner);
+					else
+						StringCchCopy(szFull, ARRAYSIZE(szFull), szOwner);
+					SetDlgItemText(hDlg, IDC_FILE_OWNER, szFull);
+				}
+				LocalFree(pSD);
+			}
 		}
 		EnableWindow(GetDlgItem(hDlg, IDC_LOCKER), TRUE);
 		CheckDlgButton(hDlg, IDC_LOCKER, BST_UNCHECKED);
@@ -188,7 +220,7 @@ static HANDLE hFile = NULL;
 			    for (id = 1018; id <= 1029; ++id)
 			        if (id != IDC_ATTRIBUTE_NORMAL)
 			            CheckDlgButton(hDlg, id, BST_UNCHECKED);
-			} else if (wCtrlId != IDC_ATTRIBUTE_NORMAL && wCtrlId >= 1018 && wCtrlId <= 1029 &&
+			} else if (wCtrlId != IDC_ATTRIBUTE_NORMAL && wCtrlId >= 1018 && wCtrlId <= 1030 &&
 			           IsDlgButtonChecked(hDlg, wCtrlId) == BST_CHECKED) {
 			    /* Any non-Normal attribute set -> clear Normal */
 			    CheckDlgButton(hDlg, IDC_ATTRIBUTE_NORMAL, BST_UNCHECKED);
@@ -222,6 +254,12 @@ static HANDLE hFile = NULL;
 			private_GetTimeDate(hDlg, IDC_BFI_LAST_WRITE_TIME_DATE, IDC_BFI_LAST_WRITE_TIME_TIME, &fbi.LastWriteTime);
 	        
 			fbi.FileAttributes = dwFileAttributes;
+			/* Task #12: confirm before writing timestamps */
+			if (MessageBox(hDlg, ResStr(IDS_SAVE_CONFIRM_MSG), ResStr(IDS_SAVE_CONFIRM_TITLE),
+			               MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) {
+				EnableWindow(GetDlgItem(hDlg, IDC_FILEINFO_SAVE), TRUE);
+				break;
+			}
 			if ( !SetFileInformationByHandle( hFile, FileBasicInfo, &fbi, sizeof(fbi) ) ) {
 				common_ShowError(hDlg, ResStr(IDS_ERR_SETFILEINFO));
 			}

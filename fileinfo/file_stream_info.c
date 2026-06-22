@@ -1,6 +1,7 @@
 #include "common.h"
 #include <tchar.h>
 #include <commdlg.h>
+#include <shlobj.h>
 #include "file_stream_info.h"
 #include "resource.h"
 
@@ -136,6 +137,135 @@ private_BeginStreamCreate(HWND hDlg, HWND hListView, HINSTANCE hInst,
     SetFocus(hEdit);
 }
 
+/* ================================================================== */
+/* Task #18: Background I/O thread with IProgressDialog               */
+/* ================================================================== */
+
+typedef struct {
+    TCHAR    szSrc[MAX_PATH * 2];
+    TCHAR    szDst[MAX_PATH * 2];
+    LONGLONG llTotal;
+    LONGLONG llDone;
+    DWORD    dwError;
+    HANDLE   hCancel;
+} STREAM_IO_PARAMS;
+
+static DWORD WINAPI
+private_StreamCopyThread(LPVOID lpParam)
+{
+    STREAM_IO_PARAMS *p = (STREAM_IO_PARAMS *)lpParam;
+    HANDLE hSrc, hDst;
+    BYTE   buf[64 * 1024];
+    DWORD  dwRead, dwWritten;
+    LARGE_INTEGER liSize;
+
+    hSrc = CreateFile(p->szSrc, GENERIC_READ, FILE_SHARE_READ,
+                      NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hSrc == INVALID_HANDLE_VALUE) { p->dwError = GetLastError(); return 1; }
+
+    hDst = CreateFile(p->szDst, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                      NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hDst == INVALID_HANDLE_VALUE) {
+        p->dwError = GetLastError(); CloseHandle(hSrc); return 1;
+    }
+
+    liSize.QuadPart = 0;
+    GetFileSizeEx(hSrc, &liSize);
+    p->llTotal = liSize.QuadPart;
+    p->llDone  = 0;
+    p->dwError = ERROR_SUCCESS;
+
+    while (p->dwError == ERROR_SUCCESS
+           && WaitForSingleObject(p->hCancel, 0) == WAIT_TIMEOUT
+           && ReadFile(hSrc, buf, sizeof(buf), &dwRead, NULL)
+           && dwRead > 0) {
+        if (!WriteFile(hDst, buf, dwRead, &dwWritten, NULL) || dwWritten != dwRead)
+            p->dwError = GetLastError();
+        else
+            p->llDone += dwRead;
+    }
+    if (WaitForSingleObject(p->hCancel, 0) != WAIT_TIMEOUT)
+        p->dwError = ERROR_CANCELLED;
+
+    CloseHandle(hDst);
+    CloseHandle(hSrc);
+    return p->dwError == ERROR_SUCCESS ? 0 : 1;
+}
+
+static BOOL
+private_RunStreamCopy(HWND hParent, LPCTSTR szSrc, LPCTSTR szDst)
+{
+    IProgressDialog *pPD = NULL;
+    STREAM_IO_PARAMS params;
+    HANDLE hThread, hCancel;
+    BOOL bOk;
+
+    ZeroMemory(&params, sizeof(params));
+    StringCchCopy(params.szSrc, ARRAYSIZE(params.szSrc), szSrc);
+    StringCchCopy(params.szDst, ARRAYSIZE(params.szDst), szDst);
+
+    hCancel = CreateEvent(NULL, TRUE, FALSE, NULL);
+    params.hCancel = hCancel;
+
+#ifdef __cplusplus
+    if (SUCCEEDED(CoCreateInstance(CLSID_ProgressDialog, NULL, CLSCTX_INPROC_SERVER,
+                                   IID_IProgressDialog, (void **)&pPD))) {
+        pPD->SetTitle(ResStr(IDS_STREAM_CONFIRM_TITLE));
+        pPD->SetLine(1, szSrc, FALSE, NULL);
+        pPD->SetLine(2, szDst, FALSE, NULL);
+        pPD->StartProgressDialog(hParent, NULL, PROGDLG_MODAL | PROGDLG_AUTOTIME, NULL);
+    }
+#else
+    if (SUCCEEDED(CoCreateInstance(&CLSID_ProgressDialog, NULL, CLSCTX_INPROC_SERVER,
+                                   &IID_IProgressDialog, (void **)&pPD))) {
+        pPD->lpVtbl->SetTitle(pPD, ResStr(IDS_STREAM_CONFIRM_TITLE));
+        pPD->lpVtbl->SetLine(pPD, 1, szSrc, FALSE, NULL);
+        pPD->lpVtbl->SetLine(pPD, 2, szDst, FALSE, NULL);
+        pPD->lpVtbl->StartProgressDialog(pPD, hParent,
+            NULL, PROGDLG_MODAL | PROGDLG_AUTOTIME, NULL);
+    }
+#endif
+
+    hThread = CreateThread(NULL, 0, private_StreamCopyThread, &params, 0, NULL);
+
+    while (WaitForSingleObject(hThread, 100) == WAIT_TIMEOUT) {
+        if (pPD) {
+#ifdef __cplusplus
+            if (pPD->HasUserCancelled())
+                SetEvent(hCancel);
+            if (params.llTotal > 0)
+                pPD->SetProgress64(
+                    (ULONGLONG)params.llDone, (ULONGLONG)params.llTotal);
+#else
+            if (pPD->lpVtbl->HasUserCancelled(pPD))
+                SetEvent(hCancel);
+            if (params.llTotal > 0)
+                pPD->lpVtbl->SetProgress64(pPD,
+                    (ULONGLONG)params.llDone, (ULONGLONG)params.llTotal);
+#endif
+        }
+    }
+
+    if (pPD) {
+#ifdef __cplusplus
+        pPD->StopProgressDialog();
+        pPD->Release();
+#else
+        pPD->lpVtbl->StopProgressDialog(pPD);
+        pPD->lpVtbl->Release(pPD);
+#endif
+    }
+    CloseHandle(hThread);
+    CloseHandle(hCancel);
+
+    bOk = (params.dwError == ERROR_SUCCESS);
+    if (!bOk && params.dwError != ERROR_CANCELLED)
+        common_ShowError(hParent, ResStr(IDS_STREAM_ERR_WRITE));
+    return bOk;
+}
+
+/* ================================================================== */
+
 /* Write file contents to an NTFS alternate data stream.
    lpstrStreamName is the full stream name as listed in FILE_STREAM_INFO
    (e.g. ":backup:$DATA").  Shows an Open-file dialog and a confirmation
@@ -190,47 +320,13 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
     HeapFree(GetProcessHeap(), 0, szConfirm);
     szConfirm = NULL;
 
-    /* Open source */
-    hSrc = CreateFile(szSource,
-                      GENERIC_READ, FILE_SHARE_READ,
-                      NULL, OPEN_EXISTING,
-                      FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hSrc == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_SRC_OPEN));
-        return;
-    }
-
-    /* Open / overwrite the ADS */
-    hStream = CreateFile(szAdsPath,
-                         GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                         NULL, CREATE_ALWAYS,
-                         FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hStream == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_DST_OPEN));
-        CloseHandle(hSrc);
-        return;
-    }
-
-    /* Copy in chunks */
-    while (bOk
-           && ReadFile(hSrc, buf, sizeof(buf), &dwRead, NULL)
-           && dwRead > 0) {
-        bOk = WriteFile(hStream, buf, dwRead, &dwWritten, NULL)
-              && (dwWritten == dwRead);
-    }
-
-    if (!bOk)
-        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_WRITE));
-
-    CloseHandle(hStream);
-    CloseHandle(hSrc);
-
-    if (bOk) {
+    /* Task #18: background thread + IProgressDialog */
+    if (private_RunStreamCopy(hDlg, szSource, szAdsPath)) {
         MessageBox(hDlg, ResStr(IDS_STREAM_WRITE_OK),
                    ResStr(IDS_STREAM_WRITE_OK_TITLE), MB_OK | MB_ICONINFORMATION);
-        /* Refresh sizes in the list */
         SendMessage(hDlg, WM_SETFILE_HANDLE, 0, (LPARAM)hFile);
     }
+    (void)hSrc; (void)hStream; (void)buf; (void)dwRead; (void)dwWritten; (void)bOk;
 }
 
 /* ------------------------------------------------------------------ */
@@ -269,46 +365,11 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
     if (!GetSaveFileName(&ofn))
         return; /* user cancelled */
 
-    /* Open stream for reading */
-    hStream = CreateFile(szAdsPath,
-                         GENERIC_READ, FILE_SHARE_READ,
-                         NULL, OPEN_EXISTING,
-                         FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hStream == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_OPEN));
-        return;
-    }
-
-    /* Create destination file */
-    hOutFile = CreateFile(szSavePath,
-                          GENERIC_WRITE, 0,
-                          NULL, CREATE_ALWAYS,
-                          FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hOutFile == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_FILE_OPEN));
-        CloseHandle(hStream);
-        return;
-    }
-
-    /* Copy in chunks */
-    while (bOk
-           && ReadFile(hStream, buf, sizeof(buf), &dwRead, NULL)
-           && dwRead > 0) {
-        bOk = WriteFile(hOutFile, buf, dwRead, &dwWritten, NULL)
-              && (dwWritten == dwRead);
-    }
-
-    if (!bOk)
-        common_ShowError(hDlg, ResStr(IDS_STREAM_ERR_READ));
-
-    CloseHandle(hOutFile);
-    CloseHandle(hStream);
-
-    if (bOk)
-        MessageBox(hDlg,
-                   ResStr(IDS_STREAM_SAVE_OK),
-                   ResStr(IDS_STREAM_SAVE_OK_TITLE),
-                   MB_OK | MB_ICONINFORMATION);
+    /* Task #18: background thread + IProgressDialog */
+    if (private_RunStreamCopy(hDlg, szAdsPath, szSavePath))
+        MessageBox(hDlg, ResStr(IDS_STREAM_SAVE_OK),
+                   ResStr(IDS_STREAM_SAVE_OK_TITLE), MB_OK | MB_ICONINFORMATION);
+    (void)hStream; (void)hOutFile; (void)buf; (void)dwRead; (void)dwWritten; (void)bOk;
 }
 
 static LPTSTR CALLBACK
@@ -646,6 +707,34 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
               GetWindowText(hStreamNameEdit, szName, ARRAYSIZE(szName));
 
               private_DestroyStreamEdit(&hStreamNameEdit);
+
+              /* Task #13: validate ADS stream name */
+              if (szName[0] == TEXT('$')) {
+                  MessageBox(hDlg, ResStr(IDS_STREAM_INVALID_NAME),
+                             ResStr(IDS_STREAM_NO_SEL_TITLE), MB_OK | MB_ICONWARNING);
+                  if (iStreamNameEditItem >= 0) {
+                      ListView_DeleteItem(hListView, iStreamNameEditItem);
+                      iStreamNameEditItem = -1;
+                  }
+                  break;
+              }
+              {
+                  static const TCHAR szForbidden[] = TEXT(":/\\*?\"<>|");
+                  const TCHAR *p = szName, *q;
+                  BOOL bBad = FALSE;
+                  for (; *p && !bBad; ++p)
+                      for (q = szForbidden; *q; ++q)
+                          if (*p == *q) { bBad = TRUE; break; }
+                  if (bBad) {
+                      MessageBox(hDlg, ResStr(IDS_STREAM_INVALID_NAME),
+                                 ResStr(IDS_STREAM_NO_SEL_TITLE), MB_OK | MB_ICONWARNING);
+                      if (iStreamNameEditItem >= 0) {
+                          ListView_DeleteItem(hListView, iStreamNameEditItem);
+                          iStreamNameEditItem = -1;
+                      }
+                      break;
+                  }
+              }
 
               if (szName[0] == TEXT('\0')) {
                   MessageBox(hDlg,

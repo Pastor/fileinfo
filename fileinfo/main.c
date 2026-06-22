@@ -698,6 +698,13 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			DragFinish(hDrop);
 			break;
 		}
+		case WM_KEYDOWN: {
+			/* Task #14: F5 refreshes file info for currently open file */
+			if ((int)wParam == VK_F5 && hFile && hFile != INVALID_HANDLE_VALUE) {
+				private_SetFileHandle(hDlg, hTabCtrl, hFile, lpstrFileName);
+			}
+			break;
+		}
 		case WM_COMMAND: {
 			WORD wNotifyId = HIWORD(wParam);
 			WORD wCtrlId = LOWORD(wParam);

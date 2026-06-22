@@ -100,6 +100,8 @@ BEGIN
     PUSHBUTTON      "Сохранить",IDC_FILEINFO_SAVE,133,91,45,19,WS_DISABLED
     PUSHBUTTON      "Вернуть",IDC_FILEINFO_RESTORE,133,112,45,19,WS_DISABLED
     CONTROL         "Разбитый",IDC_ATTRIBUTE_SPARSE,"Button",BS_AUTOCHECKBOX | WS_DISABLED | WS_TABSTOP,4,151,61,10
+    LTEXT           "Владелец:",IDC_STATIC,133,134,46,10,SS_CENTERIMAGE
+    EDITTEXT        IDC_FILE_OWNER,133,145,46,16,ES_READONLY | ES_AUTOHSCROLL
 END
 
 FILE_STANDART_INFO DIALOGEX 0, 0, 178, 156
@@ -116,6 +118,7 @@ BEGIN
     CONTROL         "Директория",IDC_IS_DIRECTORY,"Button",BS_AUTOCHECKBOX | WS_DISABLED | WS_TABSTOP,2,73,154,11
     LTEXT           "байт",IDC_STATIC,159,2,17,13,SS_CENTERIMAGE
     LTEXT           "байт",IDC_STATIC,159,20,17,13,SS_CENTERIMAGE
+    EDITTEXT        IDC_EXTRA_INFO,2,90,174,62,ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL | WS_DISABLED
 END
 
 FILE_STREAM_INFO DIALOGEX 0, 0, 178, 156
@@ -375,6 +378,10 @@ BEGIN
     2092 "Выравнивание: %u байт"
     2093 "Reparse тег: 0x%08X"
     2094 "Закрыть"
+    2095 "Сохранить изменения меток времени?"
+    2096 "Подтверждение"
+    2097 "Имя потока содержит запрещённые символы или начинается с $."
+    2098 "%lld байт (%s)"
 END
 
 

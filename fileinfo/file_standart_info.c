@@ -1,6 +1,8 @@
 #include "common.h"
 #include "file_standart_info.h"
 #include "resource.h"
+#include <shlwapi.h>
+#pragma comment(lib, "shlwapi.lib")
 
 INT_PTR CALLBACK 
 fsi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -19,16 +21,18 @@ fsi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			bClear = FALSE;
 			bResult = GetFileInformationByHandleEx(hFile, FileStandardInfo, &fsi, sizeof(fsi));
 			if ( bResult ) {
-			  LPTSTR lpMsg;
-			  DWORD dwMsgSize;
-
-			  dwMsgSize = 1024 * sizeof(TCHAR);
-			  lpMsg = (LPTSTR)LocalAlloc(LPTR, dwMsgSize);
-			  StringCchPrintf( lpMsg, dwMsgSize, TEXT("%lld"), fsi.AllocationSize.QuadPart );
-			  SetDlgItemText( hDlg, IDC_ALLOCATED_SIZE, lpMsg );
-			  StringCchPrintf( lpMsg, dwMsgSize, TEXT("%lld"), fsi.EndOfFile.QuadPart );
-			  SetDlgItemText( hDlg, IDC_ENDOF_FILE, lpMsg );
-			  LocalFree(lpMsg);
+			  /* Task #10: format sizes with human-readable suffix */
+			  {
+				TCHAR szHR[32], szBuf[96];
+				StrFormatByteSize64(fsi.AllocationSize.QuadPart, szHR, ARRAYSIZE(szHR));
+				StringCchPrintf(szBuf, ARRAYSIZE(szBuf), ResStr(IDS_SIZE_FMT),
+				                fsi.AllocationSize.QuadPart, szHR);
+				SetDlgItemText(hDlg, IDC_ALLOCATED_SIZE, szBuf);
+				StrFormatByteSize64(fsi.EndOfFile.QuadPart, szHR, ARRAYSIZE(szHR));
+				StringCchPrintf(szBuf, ARRAYSIZE(szBuf), ResStr(IDS_SIZE_FMT),
+				                fsi.EndOfFile.QuadPart, szHR);
+				SetDlgItemText(hDlg, IDC_ENDOF_FILE, szBuf);
+			  }
 			  SetDlgItemInt(hDlg, IDC_NUMBER_OF_LINKS, fsi.NumberOfLinks, FALSE );
 			  CheckDlgButton( hDlg, IDC_IS_DIRECTORY, fsi.Directory ? BST_CHECKED : BST_UNCHECKED );
 			  CheckDlgButton( hDlg, IDC_DELETED_PENDING, fsi.DeletePending ? BST_CHECKED : BST_UNCHECKED );
@@ -87,10 +91,24 @@ fsi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 						}
 					  }
 					}
-				if (szExtra[0]) {
-					/* Show via tooltip on the AllocationSize control */
-					HWND hCtrl = GetDlgItem(hDlg, IDC_ALLOCATED_SIZE);
-					if (hCtrl) SetWindowText(hCtrl, szExtra);
+				/* Task #17: NTFS compression ratio (AllocationSize vs EndOfFile) */
+				if (fsi.EndOfFile.QuadPart > 0 &&
+				    fsi.AllocationSize.QuadPart < fsi.EndOfFile.QuadPart) {
+					double ratio = (1.0 - (double)fsi.AllocationSize.QuadPart /
+					               fsi.EndOfFile.QuadPart) * 100.0;
+					TCHAR szLine[256];
+					StringCchPrintf(szLine, ARRAYSIZE(szLine),
+					    ResStr(IDS_ADD_COMPR_FMT),
+					    fsi.AllocationSize.QuadPart, ratio);
+					StringCchCat(szExtra, ARRAYSIZE(szExtra), szLine);
+					StringCchCat(szExtra, ARRAYSIZE(szExtra), TEXT("\r\n"));
+				}
+				/* Show extra info in IDC_EXTRA_INFO, enable control if non-empty */
+				{ HWND hExtra = GetDlgItem(hDlg, IDC_EXTRA_INFO);
+				  if (hExtra) {
+					SetWindowText(hExtra, szExtra[0] ? szExtra : TEXT(""));
+					EnableWindow(hExtra, szExtra[0] ? TRUE : FALSE);
+				  }
 				}
 			  }
 			} else {
@@ -101,11 +119,13 @@ fsi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		}
 
 		if ( bClear ) {
-			SetDlgItemInt( hDlg, IDC_ALLOCATED_SIZE, 0, FALSE );
-			SetDlgItemInt( hDlg, IDC_ENDOF_FILE, 0, FALSE );
+			SetDlgItemText( hDlg, IDC_ALLOCATED_SIZE, TEXT("0") );
+			SetDlgItemText( hDlg, IDC_ENDOF_FILE, TEXT("0") );
 			SetDlgItemInt( hDlg, IDC_NUMBER_OF_LINKS, 0, FALSE );
 			CheckDlgButton( hDlg, IDC_IS_DIRECTORY, BST_UNCHECKED );
 			CheckDlgButton( hDlg, IDC_DELETED_PENDING, BST_UNCHECKED );
+			SetDlgItemText( hDlg, IDC_EXTRA_INFO, TEXT("") );
+			EnableWindow( GetDlgItem(hDlg, IDC_EXTRA_INFO), FALSE );
 		}
 		break;
 	}
