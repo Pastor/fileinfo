@@ -5,9 +5,9 @@
 ## Назначение
 
 Позволяет открыть любой файл или папку и изучить/изменить:
-- **Основные** — атрибуты файла (readonly, hidden, system, …), временны́е метки (creation, access, write, change)
-- **Стандартные** — размер на диске, размер файла, кол-во жёстких ссылок, флаги directory/delete-pending
-- **Потоки** — NTFS alternate data streams (список, просмотр, сохранение в файл, создание нового потока, запись файла в поток)
+- **Основные** — атрибуты файла (readonly, hidden, system, …), временны́е метки (creation, access, write, change), владелец файла
+- **Размеры** — размер на диске, размер файла, кол-во жёстких ссылок, флаги directory/delete-pending, степень сжатия NTFS
+- **Потоки** — NTFS alternate data streams (список, просмотр hex/текст, сохранение в файл, создание нового потока, запись файла в поток с прогресс-диалогом)
 - **Идентификаторы** — volume serial number, 128-bit file unique ID (FileIdInfo, требует Windows 8+)
 - **EXIF** — EXIF/IPTC/XMP через Exiv2 (при наличии библиотеки); без Exiv2 — заглушка-сообщение
 
@@ -34,66 +34,51 @@ WinMain()
 
 | Файл | Описание |
 |------|----------|
-| `main.c` | WinMain, MainDialog, открытие файла, drag-and-drop, tab switching |
+| `main.c` | WinMain, MainDialog, открытие файла, drag-and-drop, tab switching, F5 refresh, recent files, compare |
 | `common.c/h` | CreateSecurityAttributes (ACL для Administrators), FormatMessage-ошибки |
-| `file_basic_info.c/h` | Атрибуты + DateTimePicker для 4 временных меток, сохранение через SetFileInformationByHandle |
-| `file_standart_info.c/h` | Отображение FILE_STANDARD_INFO (read-only) |
-| `file_stream_info.c/h` | ListView NTFS-потоков; контекстное меню: просмотр, сохранить в файл, создать (загрузить из файла); кнопка «Создать» — inline-редактирование имени нового потока |
+| `file_basic_info.c/h` | Атрибуты (incl. ReparsePoint) + DateTimePicker для 4 временных меток + владелец; сохранение с подтверждением; DST-корректный timezone |
+| `file_standart_info.c/h` | FILE_STANDARD_INFO: размеры (StrFormatByteSize64), ссылки, compression/storage/alignment/reparse в IDC_EXTRA_INFO |
+| `file_stream_info.c/h` | ListView NTFS-потоков; просмотр (hex/text), сохранение, создание с валидацией имени; I/O в фоновом потоке с IProgressDialog |
 | `file_id_info.c/h` | Volume serial + 128-bit file ID в hex |
-| `file_exif_info.c/h` | EXIF/IPTC/XMP через Exiv2 (`#ifdef EXIV2_AVAILABLE`); без библиотеки — заглушка |
-| `resource.h` | Все IDC_* / IDM_* константы |
+| `file_exif_info.c/h` | EXIF/IPTC/XMP через Exiv2 (`#ifdef EXIV2_AVAILABLE`); двойной клик — редактирование; без библиотеки — заглушка |
+| `resource.h` | Все IDC_* / IDM_* / IDS_* константы; IDC_FILE_OWNER=1092, IDC_EXTRA_INFO=1093 |
 
 ## Сборка
 
-- Visual Studio 2019+ (toolset v142)
-- Windows SDK 10.0.18362.0
-- Конфигурации: Debug|Win32, Release|Win32, Debug|x64, Release|x64
-- Зависимости: comctl32.lib, advapi32.lib
-- Путь к Exiv2 прописан в .vcxproj (3rdParty\exiv2\), библиотека не подключена
-- **CI**: GitHub Actions → `.github/workflows/msbuild.yml` (Release|Win32)
+- VS2022 BuildTools, toolset **v145**
+- Windows SDK **10.0.26100.0**
+- Конфигурации: Debug|Win32 (C), Release|Win32 (C++), Debug|x64, **Release|x64** (основная)
+- Debug компилируется как C (`/TC`), Release — как C++ (`/TP`)
+- Exiv2 (x64): `3rdParty\exiv2\lib64\exiv2.lib` + `exiv2.dll` рядом с exe
+- **Рабочая сборка**: `Release|x64` — 0 ошибок, 0 предупреждений
 
-## Известные проблемы и TODO
+### Команда сборки (MSBuild)
 
-### Нереализовано
-- [x] EXIF-вкладка — реализована через Exiv2 (см. «Подключение Exiv2» ниже)
-- [x] Создание нового NTFS-потока — кнопка `IDC_CREATE_STREAM` (inline-ввод имени) и контекстное меню `IDM_CREATE_STREAM` (запись содержимого файла в поток)
-- [x] x64 конфигурация сборки — добавлены `Debug|x64` и `Release|x64`
+```
+"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+    fileinfo.sln
+    /p:Configuration=Release /p:Platform=x64
+    /p:WindowsTargetPlatformVersion=10.0.26100.0
+    /p:PlatformToolset=v145
+    /noautoresponse
+```
 
-### Подключение Exiv2 (EXIF-поддержка)
+## Ключевые технические детали
 
-1. Склонируйте и соберите [Exiv2](https://github.com/Exiv2/exiv2) для Win32:
-   ```
-   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -A Win32
-   cmake --build build --config Release
-   ```
-2. Скопируйте результат:
-   - Заголовки → `3rdParty\exiv2\include\`
-   - Импорт-библиотека → `3rdParty\exiv2\lib\exiv2.lib`
-   - DLL → рядом с `fileinfo.exe`
-3. В `fileinfo.vcxproj` в секции Release `PreprocessorDefinitions` добавьте `EXIV2_AVAILABLE`.
-4. Там же раскомментируйте `<AdditionalDependencies>exiv2.lib;...</AdditionalDependencies>`.
-5. Пересоберите: `msbuild /p:Configuration=Release`
+- **Кодировка**: весь Кириллический текст в `.c` и `.rc` — CP1251 байты; Edit tool запрещён для таких файлов — только Python `rb`/`wb`
+- **Окончания строк**: `file_basic_info.c` / `file_standart_info.c` / `main.c` — CRLF; `file_stream_info.c` / `fileinfo.rc` — LF
+- **COM в C vs C++**: Debug (C) — `pObj->lpVtbl->Method(pObj, args)` + `&CLSID_*`; Release (C++) — `pObj->Method(args)` + `CLSID_*` без `&`
+- **Timezone**: `SystemTimeToTzSpecificLocalTime` / `TzSpecificLocalTimeToSystemTime` (DST-корректно, вместо `FileTimeToLocalFileTime`)
+- **Размеры файла**: `StrFormatByteSize64` из shlwapi.lib — только сокращённый вид («1,15 ГБ»)
+- **Владелец файла**: `GetSecurityInfo` + `LookupAccountSid` → `IDC_FILE_OWNER` (1092) в FILE_BASIC_INFO
+- **Фоновый I/O потоков**: `private_StreamCopyThread` + `private_RunStreamCopy` с `IProgressDialog` (CLSCTX_INPROC_SERVER)
+- **Валидация имени ADS**: запрещены `: / \ * ? " < > |` и имена с `$`
+- **F5 refresh**: WM_KEYDOWN в MainDialog → `private_SetFileHandle(hDlg, hTabCtrl, hFile, lpstrFileName)`
+- **STRINGTABLE**: все UI-строки в ресурсах (IDS_*), загрузка через `ResStr()` — ротирующий буфер из 8 слотов
 
-Без Exiv2 вкладка показывает сообщение-заглушку — CI и Debug-сборки работают без изменений.
+## Известные проблемы
 
-### Технический долг
-- Компиляция Debug=C, Release=C++ (несогласованность в .vcxproj)
-- `common_CreateSecurityAttributes` / `common_FreeSecurityAttributes` — глобальное состояние (не thread-safe, задокументировано)
 - Нет обработки ERROR_MORE_DATA в file_stream_info.c при большом числе потоков
-- README.md пустой (только заголовок + TODO про EXIF)
+- README.md устаревший
 - Нет лицензии
-
-### История
-- 2017: основная разработка (все вкладки, drag-and-drop, admin elevation)
-- 2023: настройка GitHub Actions CI
-
-## Улучшения (предложения)
-
-Все улучшения реализованы:
-
-1. ~~**Exiv2**~~ — реализовано, см. «Подключение Exiv2» выше
-2. ~~**x64**~~ — добавлены конфигурации `Debug|x64` и `Release|x64` (выход: `Release_x64\`, `Debug_x64\`)
-3. ~~**ERROR_MORE_DATA**~~ — `fssi_WindowHandler` теперь удваивает буфер и повторяет вызов
-4. ~~**Документация**~~ — написан полноценный `README.md`
-5. ~~**Лицензия**~~ — добавлен `LICENSE` (MIT)
-6. ~~**Создание/запись потоков**~~ — кнопка «Создать» открывает inline-редактор имени; контекстное меню «Создать» записывает содержимое выбранного файла в поток; «Сохранить» сохраняет поток в файл
+- `common_CreateSecurityAttributes` / `common_FreeSecurityAttributes` — глобальное состояние (не thread-safe)
