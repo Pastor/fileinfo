@@ -139,8 +139,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <!-- To enable full EXIF support: add EXIV2_AVAILABLE here and place Exiv2 in 3rdParty\exiv2\ -->
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;EXIV2_AVAILABLE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <PrecompiledHeader />
@@ -154,8 +153,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <TargetMachine>MachineX86</TargetMachine>
-      <!-- Uncomment when EXIV2_AVAILABLE is defined: -->
-      <!-- <AdditionalDependencies>exiv2.lib;%(AdditionalDependencies)</AdditionalDependencies> -->
+      <AdditionalDependencies>exiv2.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
@@ -195,8 +193,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <!-- To enable full EXIF support: add EXIV2_AVAILABLE here and place Exiv2 in 3rdParty\exiv2\ -->
-      <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_WINDOWS;EXIV2_AVAILABLE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <PrecompiledHeader />
@@ -210,8 +207,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <TargetMachine>MachineX64</TargetMachine>
-      <!-- Uncomment when EXIV2_AVAILABLE is defined: -->
-      <!-- <AdditionalDependencies>exiv2.lib;%(AdditionalDependencies)</AdditionalDependencies> -->
+      <AdditionalDependencies>exiv2.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>

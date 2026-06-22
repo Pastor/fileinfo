@@ -15,7 +15,7 @@ VOID CALLBACK common_ShowError(HWND hParent, LPTSTR lpstrMessage);
 HWND CreateToolTipForRect(HWND hwndParent, HINSTANCE hInstance, LPTSTR lpstrText);
 HWND CreateToolTip(int iCtrlId, HWND hDlg, HINSTANCE hInstance, PTSTR pszText);
 
-#ifndef nullptr
+#ifndef __cplusplus
 #define nullptr NULL
 #endif
 

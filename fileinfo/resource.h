@@ -48,6 +48,7 @@
 #define IDC_EXIF_LIST                   1083
 #define IDC_EXIF_STATUS                 1084
 #define IDM_SAVE_STREAM                 1085
+#define IDC_SHELL_INTEGRATE             1086
 
 // Next default values for new objects
 // 

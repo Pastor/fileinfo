@@ -1,5 +1,5 @@
-#include <commdlg.h>
 #include "common.h"
+#include <commdlg.h>
 #include "file_stream_info.h"
 #include "resource.h"
 
@@ -18,10 +18,10 @@ static struct tagTransferColumn {
 	INT		iWidth;
 	INT		iMask;
 } g_ListViewColumn [] = {
-	{ 0,	TEXT("пїЅ"),	      30,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 1,	TEXT("пїЅпїЅпїЅ"),	  100, LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 2,	TEXT("пїЅпїЅпїЅпїЅпїЅпїЅ"),	  75,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
-	{ 3,	TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), 80,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT }
+	{ 0,	TEXT("№"),	      30,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 1,	TEXT("Имя"),	  100, LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 2,	TEXT("Размер"),	  75,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT },
+	{ 3,	TEXT("Выделено"), 80,  LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT }
 };
 
 
@@ -55,6 +55,8 @@ StreamNameEditProc(HWND hEdit, UINT uMsg, WPARAM wParam, LPARAM lParam)
     HWND hDlg = (HWND)(LONG_PTR)GetWindowLongPtr(hEdit, GWLP_USERDATA);
 
     switch (uMsg) {
+    case WM_GETDLGCODE:
+        return DLGC_WANTALLKEYS;
     case WM_KEYDOWN:
         if (wParam == VK_RETURN) {
             PostMessage(hDlg, WM_STREAM_NAME_DONE, 1, 0);
@@ -129,6 +131,7 @@ private_BeginStreamCreate(HWND hDlg, HWND hListView, HINSTANCE hInst,
 
     iStreamNameEditItem = iCount;
     *phStreamNameEdit   = hEdit;
+    SendMessage(hEdit, WM_SETFONT, (WPARAM)SendMessage(hListView, WM_GETFONT, 0, 0), TRUE);
     SetFocus(hEdit);
 }
 
@@ -157,8 +160,8 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
     ofn.hwndOwner     = hDlg;
     ofn.lpstrFile     = szSource;
     ofn.nMaxFile      = ARRAYSIZE(szSource);
-    ofn.lpstrTitle    = TEXT("Р’С‹Р±СЂР°С‚СЊ С„Р°Р№Р» РґР»СЏ Р·Р°РїРёСЃРё РІ РїРѕС‚РѕРє");
-    ofn.lpstrFilter   = TEXT("Р’СЃРµ С„Р°Р№Р»С‹ (*.*)\0*.*\0");
+    ofn.lpstrTitle    = TEXT("Выбрать файл для записи в поток");
+    ofn.lpstrFilter   = TEXT("Все файлы (*.*)\0*.*\0");
     ofn.Flags         = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
     if (!GetOpenFileName(&ofn))
@@ -170,10 +173,10 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
 
     /* Confirmation */
     StringCchPrintf(szConfirm, ARRAYSIZE(szConfirm),
-        TEXT("Р—Р°РїРёСЃР°С‚СЊ СЃРѕРґРµСЂР¶РёРјРѕРµ С„Р°Р№Р»Р°:\n\"%s\"\n\nРІ РїРѕС‚РѕРє:\n\"%s\"\n\n")
-        TEXT("РЎСѓС‰РµСЃС‚РІСѓСЋС‰РµРµ СЃРѕРґРµСЂР¶РёРјРѕРµ РїРѕС‚РѕРєР° Р±СѓРґРµС‚ РїРµСЂРµР·Р°РїРёСЃР°РЅРѕ."),
+        TEXT("Записать содержимое файла:\n\"%s\"\n\nв поток:\n\"%s\"\n\n")
+        TEXT("Существующее содержимое потока будет перезаписано."),
         szSource, lpstrStreamName);
-    if (MessageBox(hDlg, szConfirm, TEXT("РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ"),
+    if (MessageBox(hDlg, szConfirm, TEXT("Подтверждение"),
                    MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
@@ -183,7 +186,7 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
                       NULL, OPEN_EXISTING,
                       FILE_ATTRIBUTE_NORMAL, NULL);
     if (hSrc == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, TEXT("РћС‚РєСЂС‹С‚РёРµ С„Р°Р№Р»Р°-РёСЃС‚РѕС‡РЅРёРєР°"));
+        common_ShowError(hDlg, TEXT("Открытие файла-источника"));
         return;
     }
 
@@ -193,7 +196,7 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
                          NULL, CREATE_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, NULL);
     if (hStream == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, TEXT("РћС‚РєСЂС‹С‚РёРµ РїРѕС‚РѕРєР° РґР»СЏ Р·Р°РїРёСЃРё"));
+        common_ShowError(hDlg, TEXT("Открытие потока для записи"));
         CloseHandle(hSrc);
         return;
     }
@@ -207,14 +210,14 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
     }
 
     if (!bOk)
-        common_ShowError(hDlg, TEXT("Р—Р°РїРёСЃСЊ РїРѕС‚РѕРєР°"));
+        common_ShowError(hDlg, TEXT("Запись потока"));
 
     CloseHandle(hStream);
     CloseHandle(hSrc);
 
     if (bOk) {
-        MessageBox(hDlg, TEXT("РџРѕС‚РѕРє СѓСЃРїРµС€РЅРѕ РїРµСЂРµР·Р°РїРёСЃР°РЅ."),
-                   TEXT("РЈСЃРїРµС…"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(hDlg, TEXT("Поток успешно перезаписан."),
+                   TEXT("Успех"), MB_OK | MB_ICONINFORMATION);
         /* Refresh sizes in the list */
         SendMessage(hDlg, WM_SETFILE_HANDLE, 0, (LPARAM)hFile);
     }
@@ -222,8 +225,8 @@ private_LoadFileToStream(HWND hDlg, LPCTSTR lpstrFilePath,
 
 /* ------------------------------------------------------------------ */
 /* Copy the contents of an NTFS stream to a regular file.
-   lpstrFilePath вЂ” base file path (e.g. C:\dir\file.txt)
-   lpstrStreamName вЂ” stream name as reported by FILE_STREAM_INFO
+   lpstrFilePath — base file path (e.g. C:\dir\file.txt)
+   lpstrStreamName — stream name as reported by FILE_STREAM_INFO
                      (e.g. ":mydata:$DATA")
    Shows a Save File dialog and writes stream bytes to the chosen file. */
 static VOID CALLBACK
@@ -249,8 +252,8 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
     ofn.hwndOwner     = hDlg;
     ofn.lpstrFile     = szSavePath;
     ofn.nMaxFile      = ARRAYSIZE(szSavePath);
-    ofn.lpstrTitle    = TEXT("РЎРѕС…СЂР°РЅРёС‚СЊ РїРѕС‚РѕРє РєР°Рє");
-    ofn.lpstrFilter   = TEXT("Р’СЃРµ С„Р°Р№Р»С‹ (*.*)\0*.*\0");
+    ofn.lpstrTitle    = TEXT("Сохранить поток как");
+    ofn.lpstrFilter   = TEXT("Все файлы (*.*)\0*.*\0");
     ofn.Flags         = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
     if (!GetSaveFileName(&ofn))
@@ -262,7 +265,7 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
                          NULL, OPEN_EXISTING,
                          FILE_ATTRIBUTE_NORMAL, NULL);
     if (hStream == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, TEXT("РћС‚РєСЂС‹С‚РёРµ РїРѕС‚РѕРєР°"));
+        common_ShowError(hDlg, TEXT("Открытие потока"));
         return;
     }
 
@@ -272,7 +275,7 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
                           NULL, CREATE_ALWAYS,
                           FILE_ATTRIBUTE_NORMAL, NULL);
     if (hOutFile == INVALID_HANDLE_VALUE) {
-        common_ShowError(hDlg, TEXT("РЎРѕР·РґР°РЅРёРµ С„Р°Р№Р»Р°"));
+        common_ShowError(hDlg, TEXT("Создание файла"));
         CloseHandle(hStream);
         return;
     }
@@ -286,15 +289,15 @@ private_SaveStream(HWND hDlg, LPCTSTR lpstrFilePath, LPCTSTR lpstrStreamName)
     }
 
     if (!bOk)
-        common_ShowError(hDlg, TEXT("Р—Р°РїРёСЃСЊ С„Р°Р№Р»Р°"));
+        common_ShowError(hDlg, TEXT("Запись файла"));
 
     CloseHandle(hOutFile);
     CloseHandle(hStream);
 
     if (bOk)
         MessageBox(hDlg,
-                   TEXT("РџРѕС‚РѕРє СѓСЃРїРµС€РЅРѕ СЃРѕС…СЂР°РЅС‘РЅ."),
-                   TEXT("РЎРѕС…СЂР°РЅРµРЅРёРµ"),
+                   TEXT("Поток успешно сохранён."),
+                   TEXT("Сохранение"),
                    MB_OK | MB_ICONINFORMATION);
 }
 
@@ -306,7 +309,7 @@ private_GetStreamName(HANDLE hFile, LPCTSTR pPrefix) {
 	DWORD           dwPrefixLength =  pPrefix == NULL ? 0 : lstrlen(pPrefix);
 
 
-	pfni = LocalAlloc(LPTR, dwFileStructureLength);
+	pfni = (PFILE_NAME_INFO)LocalAlloc(LPTR, dwFileStructureLength);
 	if (pfni == NULL)
 		return NULL;
 	RtlZeroMemory(pfni, dwFileStructureLength);
@@ -387,8 +390,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                     INT iSel = ListView_GetSelectionMark(hListView);
                     if (iSel < 0 || !lpstrFilePath) {
                         MessageBox(hDlg,
-                            TEXT("Р’С‹Р±РµСЂРёС‚Рµ РїРѕС‚РѕРє РёР· СЃРїРёСЃРєР°."),
-                            TEXT("РЎРѕР·РґР°С‚СЊ РїРѕС‚РѕРє"), MB_OK | MB_ICONINFORMATION);
+                            TEXT("Выберите поток из списка."),
+                            TEXT("Создать поток"), MB_OK | MB_ICONINFORMATION);
                         break;
                     }
                     {
@@ -397,8 +400,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                                             szStreamName, ARRAYSIZE(szStreamName));
                         if (szStreamName[0] == TEXT('\0')) {
                             MessageBox(hDlg,
-                                TEXT("Р’С‹Р±РµСЂРёС‚Рµ РїРѕС‚РѕРє РёР· СЃРїРёСЃРєР°."),
-                                TEXT("РЎРѕР·РґР°С‚СЊ РїРѕС‚РѕРє"), MB_OK | MB_ICONINFORMATION);
+                                TEXT("Выберите поток из списка."),
+                                TEXT("Создать поток"), MB_OK | MB_ICONINFORMATION);
                             break;
                         }
                         private_LoadFileToStream(hDlg, lpstrFilePath,
@@ -428,9 +431,9 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 						if ( ListView_GetItemCount(hListView) == 0 )
 							break;
 						hStreamMenu = CreatePopupMenu();
-			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   TEXT("РџСЂРѕСЃРјРѕС‚СЂРµС‚СЊ"));
-                        AppendMenu(hStreamMenu, uFlags, IDM_SAVE_STREAM,   TEXT("РЎРѕС…СЂР°РЅРёС‚СЊ"));
-                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("РЎРѕР·РґР°С‚СЊ"));
+			            AppendMenu(hStreamMenu, uFlags, IDM_VIEW_STREAM,   TEXT("Просмотреть"));
+                        AppendMenu(hStreamMenu, uFlags, IDM_SAVE_STREAM,   TEXT("Сохранить"));
+                        AppendMenu(hStreamMenu, MF_BYPOSITION | MF_STRING, IDM_CREATE_STREAM, TEXT("Создать"));
                         SetForegroundWindow(hListView);
                         TrackPopupMenu(hStreamMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, p.x, p.y, 0, hListView, NULL);
 			            DestroyMenu(hStreamMenu);
@@ -470,8 +473,8 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
               if (szName[0] == TEXT('\0')) {
                   MessageBox(hDlg,
-                      TEXT("РРјСЏ РїРѕС‚РѕРєР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј."),
-                      TEXT("РЎРѕР·РґР°С‚СЊ РїРѕС‚РѕРє"), MB_OK | MB_ICONWARNING);
+                      TEXT("Имя потока не может быть пустым."),
+                      TEXT("Создать поток"), MB_OK | MB_ICONWARNING);
                   /* Remove the blank row we inserted */
                   if (iStreamNameEditItem >= 0) {
                       ListView_DeleteItem(hListView, iStreamNameEditItem);
@@ -498,11 +501,20 @@ fssi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                       /* Refresh the stream list */
                       SendMessage(hDlg, WM_SETFILE_HANDLE, 0, (LPARAM)hFile);
                   } else {
-                      common_ShowError(hDlg, TEXT("РЎРѕР·РґР°РЅРёРµ РїРѕС‚РѕРєР°"));
+                      common_ShowError(hDlg, TEXT("Создание потока"));
                       if (iStreamNameEditItem >= 0) {
                           ListView_DeleteItem(hListView, iStreamNameEditItem);
                           iStreamNameEditItem = -1;
                       }
+                  }
+              } else {
+                  /* lpstrFilePath is NULL - no file selected */
+                  MessageBox(hDlg,
+                      TEXT("Файл не выбран."),
+                      TEXT("Создать поток"), MB_OK | MB_ICONWARNING);
+                  if (iStreamNameEditItem >= 0) {
+                      ListView_DeleteItem(hListView, iStreamNameEditItem);
+                      iStreamNameEditItem = -1;
                   }
               }
           } else {

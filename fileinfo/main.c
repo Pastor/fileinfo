@@ -29,9 +29,9 @@ static struct tagTabCtrl {
 	HWND                      hWnd;
 	DLGPROC                   pfnProc;
 } g_TabInfoCtrl [] = {
-    { FileBasicInfo, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), TEXT("FILE_BASIC_INFO"), NULL, fbi_WindowHandler },
-    { FileStandardInfo, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), TEXT("FILE_STANDART_INFO"), NULL, fsi_WindowHandler },
-    { FileStreamInfo, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅ"), TEXT("FILE_STREAM_INFO"), NULL, fssi_WindowHandler },
+    { FileBasicInfo, TEXT("Основная"), TEXT("FILE_BASIC_INFO"), NULL, fbi_WindowHandler },
+    { FileStandardInfo, TEXT("Стандартная"), TEXT("FILE_STANDART_INFO"), NULL, fsi_WindowHandler },
+    { FileStreamInfo, TEXT("Потоки"), TEXT("FILE_STREAM_INFO"), NULL, fssi_WindowHandler },
     //{ FileNameInfo, TEXT("NameInfo"), TEXT(""), nullptr, nullptr },
     //{ FileCompressionInfo, TEXT("CompressionInfo"), TEXT(""), nullptr, nullptr },
     //{ FileAttributeTagInfo, TEXT("AttributeTagInfo"), TEXT(""), nullptr, nullptr },
@@ -46,12 +46,60 @@ static struct tagTabCtrl {
     //,
     //{ FileStorageInfo, TEXT("FileStorageInfo"), TEXT(""), nullptr, nullptr },
     //{ FileAlignmentInfo, TEXT("FileAlignmentInfo"), TEXT(""), nullptr, nullptr },
-    { FileIdInfo, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), TEXT("FILE_ID_INFO"), NULL, fii_WindowHandler }//,
+    { FileIdInfo, TEXT("Идентификатор"), TEXT("FILE_ID_INFO"), NULL, fii_WindowHandler }//,
     //{ FileIdExtdDirectoryInfo, TEXT("FileIdExtdDirectoryInfo"), TEXT(""), nullptr, nullptr },
     //{ FileIdExtdDirectoryRestartInfo, TEXT("FileIdExtdDirectoryRestartInfo"), TEXT(""), nullptr, nullptr }
 #endif
     ,{ MaximumFileInfoByHandleClass, TEXT("EXIF"), TEXT("FILE_EXIF_INFO"), NULL, fxi_WindowHandler }
 };
+
+
+static const TCHAR g_szShellKey[]    = TEXT("Software\\Classes\\*\\shell\\fileinfo");
+static const TCHAR g_szShellCmdKey[] = TEXT("Software\\Classes\\*\\shell\\fileinfo\\command");
+
+static BOOL
+private_IsShellIntegrated(VOID)
+{
+    HKEY hKey;
+    BOOL bResult = (RegOpenKeyEx(HKEY_CURRENT_USER, g_szShellKey, 0, KEY_READ, &hKey) == ERROR_SUCCESS);
+    if (bResult) RegCloseKey(hKey);
+    return bResult;
+}
+
+static BOOL
+private_RegisterShell(HWND hDlg, HINSTANCE hInstance)
+{
+    TCHAR szExePath[MAX_PATH];
+    TCHAR szCmd[MAX_PATH + 10];
+    HKEY  hKey;
+    LONG  lRet;
+
+    GetModuleFileName((HMODULE)hInstance, szExePath, ARRAYSIZE(szExePath));
+    StringCchPrintf(szCmd, ARRAYSIZE(szCmd), TEXT("\"%s\" \"%%1\""), szExePath);
+
+    lRet = RegCreateKeyEx(HKEY_CURRENT_USER, g_szShellKey, 0, NULL,
+                          REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    if (lRet != ERROR_SUCCESS) { common_ShowError(hDlg, TEXT("RegCreateKeyEx")); return FALSE; }
+    RegSetValueEx(hKey, NULL, 0, REG_SZ, (BYTE*)TEXT("Open in FileInfo"),
+                  (lstrlen(TEXT("Open in FileInfo")) + 1) * sizeof(TCHAR));
+    RegCloseKey(hKey);
+
+    lRet = RegCreateKeyEx(HKEY_CURRENT_USER, g_szShellCmdKey, 0, NULL,
+                          REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    if (lRet != ERROR_SUCCESS) { common_ShowError(hDlg, TEXT("RegCreateKeyEx cmd")); return FALSE; }
+    RegSetValueEx(hKey, NULL, 0, REG_SZ, (BYTE*)szCmd, (lstrlen(szCmd) + 1) * sizeof(TCHAR));
+    RegCloseKey(hKey);
+    return TRUE;
+}
+
+static VOID
+private_UnregisterShell(VOID)
+{
+    RegDeleteKey(HKEY_CURRENT_USER, g_szShellCmdKey);
+    RegDeleteKey(HKEY_CURRENT_USER, g_szShellKey);
+}
+
+static LPTSTR g_lpstrCmdLineFile = NULL;
 
 INT_PTR CALLBACK
 MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -65,7 +113,19 @@ WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdS
 	InitCommonControls();
     SetDebugStatusForCurentProc();
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    {
+        int nArgs;
+        LPWSTR *szArgList = CommandLineToArgvW(GetCommandLineW(), &nArgs);
+        if (szArgList && nArgs > 1) {
+            int cch = lstrlenW(szArgList[1]) + 1;
+            g_lpstrCmdLineFile = (LPTSTR)LocalAlloc(LPTR, cch * sizeof(TCHAR));
+            if (g_lpstrCmdLineFile)
+                StringCchCopyW(g_lpstrCmdLineFile, cch, szArgList[1]);
+        }
+        if (szArgList) LocalFree(szArgList);
+    }
     DialogBoxParam(hInstance, TEXT("MAINDIALOG"), NULL, MainDialog, (LPARAM)hInstance);
+    if (g_lpstrCmdLineFile) { LocalFree(g_lpstrCmdLineFile); g_lpstrCmdLineFile = NULL; }
 	return EXIT_SUCCESS;
 }
 
@@ -193,7 +253,7 @@ private_EnumerateStream(LPCTSTR lpstrFileName) {
 	if ( hStream == INVALID_HANDLE_VALUE )
 		return;
 	do {
-        __asm nop;
+        (void)0;
 	} while (FindNextStreamW(hStream, &fsd));
 	FindClose(hStream);
 }
@@ -223,9 +283,9 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 		  lpMessage = (LPTSTR)LocalAlloc(LPTR, dwMessageLength);
 		  StringCchPrintf( lpMessage, 
 			  dwMessageLength, 
-			  TEXT("пїЅпїЅпїЅпїЅ \"%s\" пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ.\r\nпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ?"), 
+			  TEXT("Файл \"%s\" защищен от записи.\r\nСнять защиту и открыть?"), 
 			  lpcstrFileName );
-	      iRet = MessageBox(hDlg, lpMessage, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"), MB_YESNO | MB_ICONQUESTION);
+	      iRet = MessageBox(hDlg, lpMessage, TEXT("Предупреждение"), MB_YESNO | MB_ICONQUESTION);
 		  if ( iRet != IDYES ) {
 			  LocalFree(lpMessage);
 			  common_FreeSecurityAttributes(&sa);
@@ -241,13 +301,19 @@ private_OpenFile(HWND hDlg, HWND hTabCtrl, HWND hEditFile, LPCTSTR lpcstrFileNam
 		  LocalFree(lpMessage);
 		}
 	}
-	hFile = CreateFile(lpcstrFileName, 
-		GENERIC_READ | GENERIC_WRITE, 
-		FILE_SHARE_READ/* | FILE_SHARE_WRITE*/, 
-		&sa, 
-		OPEN_EXISTING, 
-		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, 
-        nullptr);
+	hFile = CreateFile(lpcstrFileName,
+		GENERIC_READ | GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
+		&sa, OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+	if (hFile == INVALID_HANDLE_VALUE && GetLastError() == ERROR_SHARING_VIOLATION) {
+		/* Fallback: read-only when another process holds an exclusive write lock */
+		hFile = CreateFile(lpcstrFileName,
+			GENERIC_READ,
+			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			&sa, OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+	}
 	if ( hFile == INVALID_HANDLE_VALUE ) {
 		common_ShowError(hDlg, TEXT("CreateFile"));
 		SetWindowText(hEditFile, TEXT(""));
@@ -277,18 +343,30 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch ( uMsg ) {
 		case WM_INITDIALOG: {
 		  hInstance = (HINSTANCE)lParam;
-		  SetWindowText(hDlg, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"));
+		  SetWindowText(hDlg, TEXT("Информатор"));
 		  hEditFile = GetDlgItem(hDlg, IDC_EDITFILE);
 		  hTabCtrl = GetDlgItem(hDlg, IDC_INFOTAB);
           hRestartAsAdministrator = GetDlgItem(hDlg, IDC_RESTART_AS_ADMINISTARTOR);
 		  private_InitButtonImageList(hDlg, hInstance);
 		  private_InitTabInfoCtrl(hTabCtrl, hInstance);
-		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENFILE), hInstance, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ"));
-		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENDIRECTORY), hInstance, TEXT("пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"));
+		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENFILE), hInstance, TEXT("Открыть файл"));
+		  CreateToolTipForRect( GetDlgItem(hDlg, IDC_OPENDIRECTORY), hInstance, TEXT("Открыть директорию"));
 #if (NTDDI_VERSION >= NTDDI_VISTA)
           Button_SetElevationRequiredState(hRestartAsAdministrator, TRUE);
           EnableWindow(hRestartAsAdministrator, !IsElevated());
 #endif
+          CheckDlgButton(hDlg, IDC_SHELL_INTEGRATE,
+              private_IsShellIntegrated() ? BST_CHECKED : BST_UNCHECKED);
+          if (g_lpstrCmdLineFile) {
+              dwFileNameLength = (lstrlen(g_lpstrCmdLineFile) + 1) * sizeof(TCHAR) + 1024;
+              if (lpstrFileName) LocalFree(lpstrFileName);
+              lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
+              if (lpstrFileName) {
+                  StringCchCopy(lpstrFileName, dwFileNameLength / sizeof(TCHAR), g_lpstrCmdLineFile);
+                  hFile = private_OpenFile(hDlg, hTabCtrl, hEditFile, lpstrFileName,
+                                           dwFileNameLength, hInstance, &hTooltip);
+              }
+          }
 		  return TRUE;
 		}
 		case WM_NOTIFY: {
@@ -349,7 +427,7 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				    lpstrFileName = (LPTSTR)LocalAlloc(LPTR, dwFileNameLength);
   				
 				    bi.hwndOwner = hDlg;
-				    bi.lpszTitle = TEXT("пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ");
+				    bi.lpszTitle = TEXT("Выбор директории или файла");
 				    bi.ulFlags = BIF_BROWSEINCLUDEFILES | BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_RETURNFSANCESTORS;
                     SHGetFolderLocation(hDlg, CSIDL_DRIVES, nullptr, 0, (LPITEMIDLIST *)&bi.pidlRoot);
 				    lpIdList = SHBrowseForFolder(&bi);
@@ -382,6 +460,15 @@ MainDialog(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
                         ShellExecute(NULL, TEXT("runas"), szPathBuffer, NULL, NULL, SW_SHOWNORMAL);
                         SendMessage(hDlg, WM_CLOSE, (WPARAM)NULL, (LPARAM)NULL);
+                    }
+                    break;
+                }
+                case IDC_SHELL_INTEGRATE: {
+                    if (IsDlgButtonChecked(hDlg, IDC_SHELL_INTEGRATE) == BST_CHECKED) {
+                        if (!private_RegisterShell(hDlg, hInstance))
+                            CheckDlgButton(hDlg, IDC_SHELL_INTEGRATE, BST_UNCHECKED);
+                    } else {
+                        private_UnregisterShell();
                     }
                     break;
                 }

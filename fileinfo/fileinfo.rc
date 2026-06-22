@@ -7,7 +7,10 @@
 //
 // Generated from the TEXTINCLUDE 2 resource.
 //
-#include "afxres.h"
+#include <windows.h>
+#ifndef IDC_STATIC
+#define IDC_STATIC (-1)
+#endif
 
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
@@ -59,8 +62,9 @@ BEGIN
     PUSHBUTTON      "",IDC_OPENFILE,172,2,14,13,BS_ICON | BS_CENTER | BS_VCENTER
     EDITTEXT        IDC_EDITFILE,2,2,169,12,ES_AUTOHSCROLL | ES_READONLY
     CONTROL         "",IDC_INFOTAB,"SysTabControl32",0x0,2,19,184,180
-    CTEXT           "Created by Pastor<viruszold@gmail.com> 2018",IDC_STATIC,2,225,184,8,WS_DISABLED
+    CTEXT           "Created by Pastor<viruszold@gmail.com> 2026",IDC_STATIC,2,225,184,8,WS_DISABLED
     PUSHBUTTON      "Перезапуск",IDC_RESTART_AS_ADMINISTARTOR,2,201,66,21
+    CONTROL         "Меню Explorer",IDC_SHELL_INTEGRATE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,72,206,114,10
 END
 
 FILE_BASIC_INFO DIALOGEX 0, 0, 182, 165

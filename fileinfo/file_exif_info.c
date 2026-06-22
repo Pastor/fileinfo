@@ -1,5 +1,5 @@
 /*
- * file_exif_info.c вЂ” EXIF/IPTC/XMP metadata viewer via Exiv2.
+ * file_exif_info.c — EXIF/IPTC/XMP metadata viewer via Exiv2.
  *
  * Compiled as C++ (see .vcxproj per-file override).
  * When EXIV2_AVAILABLE is not defined the tab shows a stub message so the
@@ -33,9 +33,9 @@ static struct {
     int    iWidth;
 } g_ExifColumns[] = {
     { TEXT("#"),        30  },
-    { TEXT("РўРµРі"),      200 },
-    { TEXT("РўРёРї"),      60  },
-    { TEXT("Р—РЅР°С‡РµРЅРёРµ"), 280 },
+    { TEXT("Тег"),      200 },
+    { TEXT("Тип"),      60  },
+    { TEXT("Значение"), 280 },
 };
 
 static void
@@ -177,7 +177,7 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
 
         if (nIndex == 0) {
             /* File opened successfully but contains no metadata. */
-            private_AddRow(hListView, 0, TEXT("вЂ”"), TEXT("(РјРµС‚Р°РґР°РЅРЅС‹Рµ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‚)"),
+            private_AddRow(hListView, 0, TEXT("—"), TEXT("(метаданные отсутствуют)"),
                            TEXT(""), TEXT(""));
         }
     } catch (const Exiv2::Error& e) {
@@ -185,7 +185,7 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
         char  szWhat[256];
         StringCchCopyA(szWhat, ARRAYSIZE(szWhat), e.what());
         MultiByteToWideChar(CP_ACP, 0, szWhat, -1, szMsg, ARRAYSIZE(szMsg));
-        private_AddRow(hListView, 0, TEXT("!"), TEXT("РћС€РёР±РєР° С‡С‚РµРЅРёСЏ EXIF"),
+        private_AddRow(hListView, 0, TEXT("!"), TEXT("Ошибка чтения EXIF"),
                        TEXT(""), szMsg);
     }
 }
@@ -199,10 +199,10 @@ private_LoadExif(HWND hDlg, HWND hListView, LPCWSTR lpstrFileName)
     (void)hDlg;
     (void)lpstrFileName;
     private_AddRow(hListView, 0,
-                   TEXT("вЂ”"),
-                   TEXT("EXIF РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ"),
+                   TEXT("—"),
+                   TEXT("EXIF не поддерживается"),
                    TEXT(""),
-                   TEXT("РЎРѕР±РµСЂРёС‚Рµ РїСЂРѕРµРєС‚ СЃ EXIV2_AVAILABLE Рё Р±РёР±Р»РёРѕС‚РµРєРѕР№ Exiv2."));
+                   TEXT("Соберите проект с EXIV2_AVAILABLE и библиотекой Exiv2."));
 }
 
 #endif /* EXIV2_AVAILABLE */
@@ -265,7 +265,7 @@ fxi_WindowHandler(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
 
     case WM_SETFILE_HANDLE:
-        /* File handle not used directly вЂ” EXIF is read by path via Exiv2. */
+        /* File handle not used directly — EXIF is read by path via Exiv2. */
         break;
 
     case WM_RESETFILE_HANDLE: {
